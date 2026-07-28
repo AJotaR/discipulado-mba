@@ -137,22 +137,50 @@ def salvar_dados(dados):
             st.error(f"Erro ao salvar dados no Supabase: {e}")
 
 
-# --- FUNÇÃO DE UPLOAD AJUSTADA PARA O BUCKET 'MIDIAS' (MAIÚSCULO) ---
+# --- FUNÇÃO DE UPLOAD COM RECONHECIMENTO AUTOMÁTICO DE BUCKET ---
 def upload_imagem(file, caminho_destino):
     if supabase:
-        try:
-            bytes_data = file.getbuffer().tobytes()
-            # Nome do bucket alterado para MIDIAS
-            supabase.storage.from_("MIDIAS").upload(
-                caminho_destino, bytes_data, file_options={"upsert": "true"}
-            )
-            url = supabase.storage.from_("MIDIAS").get_public_url(
-                caminho_destino
-            )
-            return url
-        except Exception as e:
-            st.error(f"Erro no envio da imagem: {e}")
-            return ""
+        bytes_data = file.getbuffer().tobytes()
+
+        # Testa tanto 'midias' em minúsculo quanto 'MIDIAS' em maiúsculo
+        for bucket_nome in ["MIDIAS", "midias"]:
+            try:
+                # Tenta fazer o upload no bucket existente
+                supabase.storage.from_(bucket_nome).upload(
+                    caminho_destino,
+                    bytes_data,
+                    file_options={"upsert": "true"},
+                )
+                url = supabase.storage.from_(bucket_nome).get_public_url(
+                    caminho_destino
+                )
+                return url
+            except Exception as e:
+                err_msg = str(e)
+                # Se o erro for de bucket inexistente, tenta criar o bucket e refazer o upload
+                if "Bucket not found" in err_msg or "404" in err_msg:
+                    try:
+                        supabase.storage.create_bucket(
+                            bucket_nome, options={"public": True}
+                        )
+                        supabase.storage.from_(bucket_nome).upload(
+                            caminho_destino,
+                            bytes_data,
+                            file_options={"upsert": "true"},
+                        )
+                        return supabase.storage.from_(
+                            bucket_nome
+                        ).get_public_url(caminho_destino)
+                    except Exception:
+                        continue
+                else:
+                    # Se for outro erro (ex: autorização), exibe na tela
+                    st.error(f"Erro no envio da imagem: {e}")
+                    return ""
+
+        st.error(
+            "Não foi possível salvar no Storage. Verifique as permissões do Supabase."
+        )
     return ""
 
 
