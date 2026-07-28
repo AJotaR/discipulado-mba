@@ -4,7 +4,7 @@ import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
 
-# Configuração da página para se ajustar a celulares e computadores
+# Configuração da página
 st.set_page_config(
     page_title="Discipulado MBA SEDE", page_icon="📖", layout="wide"
 )
@@ -137,14 +137,16 @@ def salvar_dados(dados):
             st.error(f"Erro ao salvar dados no Supabase: {e}")
 
 
+# --- FUNÇÃO DE UPLOAD AJUSTADA PARA O BUCKET 'MIDIAS' (MAIÚSCULO) ---
 def upload_imagem(file, caminho_destino):
     if supabase:
         try:
             bytes_data = file.getbuffer().tobytes()
-            supabase.storage.from_("midias").upload(
+            # Nome do bucket alterado para MIDIAS
+            supabase.storage.from_("MIDIAS").upload(
                 caminho_destino, bytes_data, file_options={"upsert": "true"}
             )
-            url = supabase.storage.from_("midias").get_public_url(
+            url = supabase.storage.from_("MIDIAS").get_public_url(
                 caminho_destino
             )
             return url
