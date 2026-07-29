@@ -211,6 +211,7 @@ st.sidebar.title("📖 Discipulado MBA")
 
 opcoes_menu = [
     "📚 Temas & Mapas",
+    "🎬 Vídeos & Aulas",
     "📖 Leitura Bíblica",
     "⏰ Relógio de Oração",
     "🗓️ Calendário de Jejum",
@@ -263,9 +264,9 @@ if os.path.exists(logo_path):
 
 es_admin = st.session_state.es_admin
 
-# --- TELA 1: TEMAS, MAPAS MENTAIS E VÍDEOS ---
+# --- TELA 1: TEMAS & MAPAS MENTAIS ---
 if pagina == "📚 Temas & Mapas":
-    st.title("📚 Temas, Mapas Mentais & Vídeos")
+    st.title("📚 Temas & Mapas Mentais")
     st.caption("O EVANGELHO DO REINO")
 
     dados.setdefault("mapas", {})
@@ -277,7 +278,7 @@ if pagina == "📚 Temas & Mapas":
         dados["videos"].setdefault(chave_mes, [])
 
         with st.expander(f"📌 {mod['tag']} - {mod['titulo']}"):
-            # --- SEÇÃO DE MAPAS MENTAIS ---
+            # Mapas Mentais
             st.markdown("#### 🗺️ Mapas Mentais")
             if es_admin:
                 mapa_upload = st.file_uploader(
@@ -311,7 +312,7 @@ if pagina == "📚 Temas & Mapas":
 
             st.divider()
 
-            # --- SEÇÃO DE VÍDEOS DO YOUTUBE ---
+            # Vídeos do YouTube
             st.markdown("#### 🎬 Vídeos & Aulas do YouTube")
             if es_admin:
                 col_url, col_btn = st.columns([3, 1])
@@ -332,12 +333,56 @@ if pagina == "📚 Temas & Mapas":
                     try:
                         st.video(video_url)
                     except Exception:
-                        st.error("Erro ao carregar o vídeo do YouTube. Verifique a URL.")
-                    
+                        st.error("Erro ao carregar o vídeo do YouTube.")
+
                     if es_admin:
                         if st.button(
                             "🗑️ Excluir este vídeo",
                             key=f"del_v_{chave_mes}_{idx_v}",
+                        ):
+                            dados["videos"][chave_mes].pop(idx_v)
+                            salvar_dados(dados)
+                            st.rerun()
+            else:
+                st.info("Nenhum vídeo cadastrado para este mês.")
+
+# --- TELA DE ATALHO EXCLUSIVA: VÍDEOS & AULAS ---
+elif pagina == "🎬 Vídeos & Aulas":
+    st.title("🎬 Vídeos & Aulas do Discipulado")
+    st.caption("Acesse diretamente todas as pregações e estudos do YouTube divididos por mês.")
+
+    dados.setdefault("videos", {})
+
+    for mod in MODULOS_MESES:
+        chave_mes = mod["chave"]
+        dados["videos"].setdefault(chave_mes, [])
+
+        with st.expander(f"🎥 {mod['tag']} - {mod['titulo']}"):
+            if es_admin:
+                col_url, col_btn = st.columns([3, 1])
+                url_video = col_url.text_input(
+                    "Cole o Link do YouTube",
+                    key=f"url_v_at_{chave_mes}",
+                )
+                if col_btn.button("➕ Adicionar Vídeo", key=f"btn_v_at_{chave_mes}"):
+                    if url_video:
+                        dados["videos"][chave_mes].append(url_video)
+                        salvar_dados(dados)
+                        st.success("Vídeo adicionado com sucesso!")
+                        st.rerun()
+
+            lista_videos = dados["videos"].get(chave_mes, [])
+            if lista_videos:
+                for idx_v, video_url in enumerate(lista_videos):
+                    try:
+                        st.video(video_url)
+                    except Exception:
+                        st.error("Erro ao carregar o vídeo do YouTube.")
+
+                    if es_admin:
+                        if st.button(
+                            "🗑️ Excluir este vídeo",
+                            key=f"del_v_at_{chave_mes}_{idx_v}",
                         ):
                             dados["videos"][chave_mes].pop(idx_v)
                             salvar_dados(dados)
