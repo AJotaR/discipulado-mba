@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
@@ -140,41 +141,38 @@ def salvar_dados(dados):
 # --- FUNÇÃO DE UPLOAD COM RECONHECIMENTO AUTOMÁTICO DE BUCKET ---
 def upload_imagem(file, caminho_destino):
     if supabase:
+        caminho_limpo = re.sub(r"[^a-zA-Z0-9_./-]", "_", caminho_destino)
         bytes_data = file.getbuffer().tobytes()
 
-        # Testa tanto 'midias' em minúsculo quanto 'MIDIAS' em maiúsculo
         for bucket_nome in ["MIDIAS", "midias"]:
             try:
-                # Tenta fazer o upload no bucket existente
                 supabase.storage.from_(bucket_nome).upload(
-                    caminho_destino,
+                    caminho_limpo,
                     bytes_data,
                     file_options={"upsert": "true"},
                 )
                 url = supabase.storage.from_(bucket_nome).get_public_url(
-                    caminho_destino
+                    caminho_limpo
                 )
                 return url
             except Exception as e:
                 err_msg = str(e)
-                # Se o erro for de bucket inexistente, tenta criar o bucket e refazer o upload
                 if "Bucket not found" in err_msg or "404" in err_msg:
                     try:
                         supabase.storage.create_bucket(
                             bucket_nome, options={"public": True}
                         )
                         supabase.storage.from_(bucket_nome).upload(
-                            caminho_destino,
+                            caminho_limpo,
                             bytes_data,
                             file_options={"upsert": "true"},
                         )
                         return supabase.storage.from_(
                             bucket_nome
-                        ).get_public_url(caminho_destino)
+                        ).get_public_url(caminho_limpo)
                     except Exception:
                         continue
                 else:
-                    # Se for outro erro (ex: autorização), exibe na tela
                     st.error(f"Erro no envio da imagem: {e}")
                     return ""
 
@@ -411,7 +409,8 @@ elif pagina == "👥 Discipuladores":
                 if st.form_submit_button("Salvar Discipulador") and nome:
                     url_foto = ""
                     if foto_file:
-                        caminho_foto = f"discipuladores/{nome}_{foto_file.name}"
+                        extensao = foto_file.name.split(".")[-1]
+                        caminho_foto = f"discipuladores/{nome}.{extensao}"
                         url_foto = upload_imagem(foto_file, caminho_foto)
 
                     dados["discipuladores"].append(
@@ -434,11 +433,11 @@ elif pagina == "👥 Discipuladores":
         disc.setdefault("participantes", [])
 
         with st.container():
-            col_img, col_info, col_p = st.columns([1, 2, 2])
+            col_img, col_info, col_p = st.columns([1.5, 2, 2])
 
             # Foto
             if disc.get("foto"):
-                col_img.image(disc["foto"], width=120)
+                col_img.image(disc["foto"], width=150)
             else:
                 col_img.write("👤 *Sem Foto*")
 
@@ -450,12 +449,48 @@ elif pagina == "👥 Discipuladores":
             col_info.write(f"👥 **Participantes:** {len(disc['participantes'])}")
 
             if es_admin:
-                if col_info.button(
-                    "🗑️ Remover Discipulador", key=f"del_disc_{idx}"
-                ):
+                c_btn1, c_btn2 = col_info.columns(2)
+                
+                # Botão Excluir
+                if c_btn1.button("🗑️ Remover", key=f"del_disc_{idx}"):
                     dados["discipuladores"].pop(idx)
                     salvar_dados(dados)
                     st.rerun()
+
+                # Expander para Editar Discipulador
+                with col_info.expander("✏️ Editar Discipulador"):
+                    with st.form(f"form_edit_disc_{idx}"):
+                        index_cargo = (
+                            CARGOS_DISPONIVEIS.index(disc.get("cargo"))
+                            if disc.get("cargo") in CARGOS_DISPONIVEIS
+                            else 0
+                        )
+                        e_cargo = st.selectbox(
+                            "Cargo", CARGOS_DISPONIVEIS, index=index_cargo, key=f"ecargo_{idx}"
+                        )
+                        e_nome = st.text_input("Nome", value=disc.get("nome", ""), key=f"enome_{idx}")
+                        e_dia = st.text_input("Dia", value=disc.get("dia", ""), key=f"edia_{idx}")
+                        e_horario = st.text_input("Horário", value=disc.get("horario", ""), key=f"ehora_{idx}")
+                        e_foto = st.file_uploader(
+                            "Trocar Foto (Opcional)", type=["png", "jpg", "jpeg"], key=f"efoto_{idx}"
+                        )
+
+                        if st.form_submit_button("💾 Salvar Alterações"):
+                            disc["cargo"] = e_cargo
+                            disc["nome"] = e_nome
+                            disc["dia"] = e_dia
+                            disc["horario"] = e_horario
+
+                            if e_foto:
+                                extensao = e_foto.name.split(".")[-1]
+                                caminho_foto = f"discipuladores/{e_nome}.{extensao}"
+                                url_nova = upload_imagem(e_foto, caminho_foto)
+                                if url_nova:
+                                    disc["foto"] = url_nova
+
+                            salvar_dados(dados)
+                            st.success("Discipulador atualizado com sucesso!")
+                            st.rerun()
 
             # Visualizar e Adicionar Participantes
             with col_p.expander(
