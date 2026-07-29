@@ -2,6 +2,7 @@ import json
 import os
 import re
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 from supabase import create_client, Client
 
@@ -11,8 +12,7 @@ st.set_page_config(
 )
 
 # --- CONFIGURAÇÃO DE SEGURANÇA ---
-# Caso você defina 'SENHA_ADMIN' nos Secrets do Streamlit, o app usará ela. Senão, usará "admin123".
-SENHA_ADMIN = st.secrets.get("SENHA_ADMIN", "Jhunyor82")
+SENHA_ADMIN = st.secrets.get("SENHA_ADMIN", "admin123")
 
 # --- CONEXÃO COM O SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
@@ -90,6 +90,26 @@ MODULOS_MESES = [
         "chave": "dezembro",
     },
 ]
+
+
+# --- FUNÇÃO AUXILIAR PARA EXIBIR VÍDEOS DO YOUTUBE ---
+def exibir_video_youtube(url):
+    """Converte qualquer link do YouTube (live, shorts, watch, youtu.be) para embed seguro"""
+    video_id = None
+    if "youtube.com/live/" in url:
+        video_id = url.split("youtube.com/live/")[1].split("?")[0]
+    elif "youtu.be/" in url:
+        video_id = url.split("youtu.be/")[1].split("?")[0]
+    elif "v=" in url:
+        video_id = url.split("v=")[1].split("&")[0]
+    elif "shorts/" in url:
+        video_id = url.split("shorts/")[1].split("?")[0]
+
+    if video_id:
+        embed_url = f"https://www.youtube.com/embed/{video_id}"
+        components.iframe(embed_url, height=450)
+    else:
+        st.video(url)
 
 
 # --- PERSISTÊNCIA DE DADOS (SUPABASE) ---
@@ -321,7 +341,7 @@ if pagina == "📚 Temas & Mapas":
             if es_admin:
                 col_url, col_btn = st.columns([3, 1])
                 url_video = col_url.text_input(
-                    "Cole o Link do YouTube (ex: https://www.youtube.com/watch?v=...)",
+                    "Cole o Link do YouTube (ex: https://youtube.com/live/...)",
                     key=f"url_v_{chave_mes}",
                 )
                 if col_btn.button("➕ Adicionar Vídeo", key=f"btn_v_{chave_mes}"):
@@ -334,10 +354,7 @@ if pagina == "📚 Temas & Mapas":
             lista_videos = dados["videos"].get(chave_mes, [])
             if lista_videos:
                 for idx_v, video_url in enumerate(lista_videos):
-                    try:
-                        st.video(video_url)
-                    except Exception:
-                        st.error("Erro ao carregar o vídeo do YouTube.")
+                    exibir_video_youtube(video_url)
 
                     if es_admin:
                         if st.button(
@@ -378,10 +395,7 @@ elif pagina == "🎬 Vídeos & Aulas":
             lista_videos = dados["videos"].get(chave_mes, [])
             if lista_videos:
                 for idx_v, video_url in enumerate(lista_videos):
-                    try:
-                        st.video(video_url)
-                    except Exception:
-                        st.error("Erro ao carregar o vídeo do YouTube.")
+                    exibir_video_youtube(video_url)
 
                     if es_admin:
                         if st.button(
@@ -799,7 +813,7 @@ elif "Solicitações" in pagina and es_admin:
                         dados["oracao"].setdefault(turno, []).append(item_p)
                         dados["pendentes_oracao"][turno].pop(idx_p)
                         salvar_dados(dados)
-                        st.success("Cadastro approved!")
+                        st.success("Cadastro aprovado!")
                         st.rerun()
 
                     if c_rec.button("❌ Recusar", key=f"rec_or_cent_{turno}_{idx_p}"):
