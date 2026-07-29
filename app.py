@@ -251,11 +251,13 @@ else:
         st.session_state.es_admin = False
         st.rerun()
 
-# --- INSERÇÃO DA LOGO ABAIXO DA ÁREA DO ADMINISTRADOR ---
+# --- INSERÇÃO DA LOGO REDUZIDA E CENTRALIZADA ABAIXO DA ÁREA DO ADMINISTRADOR ---
 st.sidebar.divider()
 logo_path = "logo.png"
 if os.path.exists(logo_path):
-    st.sidebar.image(logo_path, use_container_width=True)
+    col_v1, col_logo, col_v2 = st.sidebar.columns([1, 3, 1])
+    with col_logo:
+        st.image(logo_path, width=180)
 
 es_admin = st.session_state.es_admin
 
