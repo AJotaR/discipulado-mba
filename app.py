@@ -10,6 +10,10 @@ st.set_page_config(
     page_title="Discipulado MBA SEDE", page_icon="📖", layout="wide"
 )
 
+# --- CONFIGURAÇÃO DE SEGURANÇA ---
+# Caso você defina 'SENHA_ADMIN' nos Secrets do Streamlit, o app usará ela. Senão, usará "admin123".
+SENHA_ADMIN = st.secrets.get("SENHA_ADMIN", "admin123")
+
 # --- CONEXÃO COM O SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
@@ -241,7 +245,7 @@ if not st.session_state.es_admin:
             "Digite a senha master:", type="password"
         )
         if st.sidebar.button("Entrar"):
-            if senha_digitada == "admin123":
+            if senha_digitada == SENHA_ADMIN:
                 st.session_state.es_admin = True
                 st.session_state.mostrar_campo_senha = False
                 st.sidebar.success("Modo Admin Ativado!")
@@ -795,7 +799,7 @@ elif "Solicitações" in pagina and es_admin:
                         dados["oracao"].setdefault(turno, []).append(item_p)
                         dados["pendentes_oracao"][turno].pop(idx_p)
                         salvar_dados(dados)
-                        st.success("Cadastro aprovado!")
+                        st.success("Cadastro approved!")
                         st.rerun()
 
                     if c_rec.button("❌ Recusar", key=f"rec_or_cent_{turno}_{idx_p}"):
