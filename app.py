@@ -105,6 +105,7 @@ def carregar_dados():
                 dados.setdefault("jejum", {})
                 dados.setdefault("discipuladores", [])
                 dados.setdefault("mapas", {})
+                dados.setdefault("videos", {})
                 dados.setdefault("pendentes_oracao", {})
                 dados.setdefault("pendentes_jejum", {})
                 return dados
@@ -116,6 +117,7 @@ def carregar_dados():
         "jejum": {},
         "discipuladores": [],
         "mapas": {},
+        "videos": {},
         "pendentes_oracao": {},
         "pendentes_jejum": {},
     }
@@ -261,18 +263,22 @@ if os.path.exists(logo_path):
 
 es_admin = st.session_state.es_admin
 
-# --- TELA 1: TEMAS E MAPAS MENTAIS ---
+# --- TELA 1: TEMAS, MAPAS MENTAIS E VÍDEOS ---
 if pagina == "📚 Temas & Mapas":
-    st.title("📚 Temas & Mapas Mentais")
+    st.title("📚 Temas, Mapas Mentais & Vídeos")
     st.caption("O EVANGELHO DO REINO")
 
     dados.setdefault("mapas", {})
+    dados.setdefault("videos", {})
 
     for mod in MODULOS_MESES:
         chave_mes = mod["chave"]
         dados["mapas"].setdefault(chave_mes, [])
+        dados["videos"].setdefault(chave_mes, [])
 
         with st.expander(f"📌 {mod['tag']} - {mod['titulo']}"):
+            # --- SEÇÃO DE MAPAS MENTAIS ---
+            st.markdown("#### 🗺️ Mapas Mentais")
             if es_admin:
                 mapa_upload = st.file_uploader(
                     f"Adicionar Mapa para {mod['tag']}",
@@ -302,6 +308,42 @@ if pagina == "📚 Temas & Mapas":
                             st.rerun()
             else:
                 st.info("Nenhum mapa mental cadastrado para este mês.")
+
+            st.divider()
+
+            # --- SEÇÃO DE VÍDEOS DO YOUTUBE ---
+            st.markdown("#### 🎬 Vídeos & Aulas do YouTube")
+            if es_admin:
+                col_url, col_btn = st.columns([3, 1])
+                url_video = col_url.text_input(
+                    "Cole o Link do YouTube (ex: https://www.youtube.com/watch?v=...)",
+                    key=f"url_v_{chave_mes}",
+                )
+                if col_btn.button("➕ Adicionar Vídeo", key=f"btn_v_{chave_mes}"):
+                    if url_video:
+                        dados["videos"][chave_mes].append(url_video)
+                        salvar_dados(dados)
+                        st.success("Vídeo adicionado com sucesso!")
+                        st.rerun()
+
+            lista_videos = dados["videos"].get(chave_mes, [])
+            if lista_videos:
+                for idx_v, video_url in enumerate(lista_videos):
+                    try:
+                        st.video(video_url)
+                    except Exception:
+                        st.error("Erro ao carregar o vídeo do YouTube. Verifique a URL.")
+                    
+                    if es_admin:
+                        if st.button(
+                            "🗑️ Excluir este vídeo",
+                            key=f"del_v_{chave_mes}_{idx_v}",
+                        ):
+                            dados["videos"][chave_mes].pop(idx_v)
+                            salvar_dados(dados)
+                            st.rerun()
+            else:
+                st.info("Nenhum vídeo cadastrado para este mês.")
 
 # --- TELA 2: PLANO DE LEITURA BÍBLICA ---
 elif pagina == "📖 Leitura Bíblica":
