@@ -12,7 +12,7 @@ st.set_page_config(
 
 # --- CONFIGURAÇÃO DE SEGURANÇA ---
 # Caso você defina 'SENHA_ADMIN' nos Secrets do Streamlit, o app usará ela. Senão, usará "admin123".
-SENHA_ADMIN = st.secrets.get("SENHA_ADMIN", "admin123")
+SENHA_ADMIN = st.secrets.get("SENHA_ADMIN", "Jhunyor82")
 
 # --- CONEXÃO COM O SUPABASE ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
