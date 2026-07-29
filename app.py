@@ -195,25 +195,35 @@ if "es_admin" not in st.session_state:
 if "mostrar_campo_senha" not in st.session_state:
     st.session_state.mostrar_campo_senha = False
 
-if "meus_cadastros_oracao" not in st.session_state:
-    st.session_state.meus_cadastros_oracao = []
-
-if "meus_cadastros_jejum" not in st.session_state:
-    st.session_state.meus_cadastros_jejum = []
+# --- CONTAGEM DE SOLICITAÇÕES PENDENTES ---
+total_pendentes_oracao = sum(
+    len(v) for v in dados.get("pendentes_oracao", {}).values()
+)
+total_pendentes_jejum = sum(
+    len(v) for v in dados.get("pendentes_jejum", {}).values()
+)
+total_geral_pendentes = total_pendentes_oracao + total_pendentes_jejum
 
 # --- BARRA LATERAL (MENU & ÁREA DO ADMIN) ---
 st.sidebar.title("📖 Discipulado MBA")
 
-pagina = st.sidebar.radio(
-    "Navegação",
-    [
-        "📚 Temas & Mapas",
-        "📖 Leitura Bíblica",
-        "⏰ Relógio de Oração",
-        "🗓️ Calendário de Jejum",
-        "👥 Discipuladores",
-    ],
-)
+opcoes_menu = [
+    "📚 Temas & Mapas",
+    "📖 Leitura Bíblica",
+    "⏰ Relógio de Oração",
+    "🗓️ Calendário de Jejum",
+    "👥 Discipuladores",
+]
+
+if st.session_state.es_admin:
+    rotulo_notificacao = (
+        f"🔔 Solicitações ({total_geral_pendentes} pendentes)"
+        if total_geral_pendentes > 0
+        else "🔔 Solicitações"
+    )
+    opcoes_menu.append(rotulo_notificacao)
+
+pagina = st.sidebar.radio("Navegação", opcoes_menu)
 
 st.sidebar.divider()
 
@@ -240,6 +250,12 @@ else:
     if st.sidebar.button("🚪 Sair do modo Admin"):
         st.session_state.es_admin = False
         st.rerun()
+
+# --- INSERÇÃO DA LOGO ABAIXO DA ÁREA DO ADMINISTRADOR ---
+st.sidebar.divider()
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    st.sidebar.image(logo_path, use_container_width=True)
 
 es_admin = st.session_state.es_admin
 
@@ -345,24 +361,6 @@ elif pagina == "⏰ Relógio de Oração":
     if turno_sel not in dados["pendentes_oracao"]:
         dados["pendentes_oracao"][turno_sel] = []
 
-    # PAINEL DE APROVAÇÃO DO ADMIN
-    if es_admin and dados["pendentes_oracao"][turno_sel]:
-        st.warning("⚠️ **Cadastros Pendentes de Aprovação para este turno:**")
-        for idx_p, item_p in enumerate(list(dados["pendentes_oracao"][turno_sel])):
-            c_info, c_ok, c_rec = st.columns([3, 1, 1])
-            c_info.write(f"⏳ **[{item_p['cargo']}]** {item_p['nome']}")
-            if c_ok.button("✅ Aprovar", key=f"aprov_or_{turno_sel}_{idx_p}"):
-                dados["oracao"][turno_sel].append(item_p)
-                dados["pendentes_oracao"][turno_sel].pop(idx_p)
-                salvar_dados(dados)
-                st.success("Cadastro aprovado!")
-                st.rerun()
-            if c_rec.button("❌ Recusar", key=f"rec_or_{turno_sel}_{idx_p}"):
-                dados["pendentes_oracao"][turno_sel].pop(idx_p)
-                salvar_dados(dados)
-                st.rerun()
-        st.divider()
-
     # FORMULÁRIO DE CADASTRO
     with st.expander("📝 Cadastro para este horário de oração", expanded=True):
         if es_admin:
@@ -371,7 +369,9 @@ elif pagina == "⏰ Relógio de Oração":
                 cargo = c1.selectbox("Cargo", CARGOS_DISPONIVEIS)
                 nome = c2.text_input("Nome do Intercessor")
                 if st.form_submit_button("➕ Publicar Direto (Admin)") and nome:
-                    dados["oracao"][turno_sel].append({"cargo": cargo, "nome": nome})
+                    dados["oracao"][turno_sel].append(
+                        {"cargo": cargo, "nome": nome}
+                    )
                     salvar_dados(dados)
                     st.success("Intercessor adicionado à escala!")
                     st.rerun()
@@ -384,24 +384,37 @@ elif pagina == "⏰ Relógio de Oração":
                     novo_cad = {"cargo": cargo, "nome": nome}
                     dados["pendentes_oracao"][turno_sel].append(novo_cad)
                     salvar_dados(dados)
-                    st.session_state.meus_cadastros_oracao.append(f"{turno_sel}_{len(dados['pendentes_oracao'][turno_sel])-1}")
-                    st.info("⏳ Cadastro enviado com sucesso! Aguardando a aprovação do administrador.")
+                    st.info(
+                        "⏳ Cadastro enviado com sucesso! Aguardando a aprovação do administrador."
+                    )
                     st.rerun()
 
-    # MINHAS SOLICITAÇÕES PENDENTES (Edição/Exclusão para o usuário)
+    # SOLICITAÇÕES PENDENTES DO USUÁRIO NESTA SESSÃO
     if not es_admin and dados["pendentes_oracao"][turno_sel]:
         st.caption("Seus cadastros pendentes neste horário:")
-        for idx_p, item_p in enumerate(list(dados["pendentes_oracao"][turno_sel])):
+        for idx_p, item_p in enumerate(
+            list(dados["pendentes_oracao"][turno_sel])
+        ):
             col_info, col_edt, col_del = st.columns([3, 1, 1])
-            col_info.write(f"⏳ **[{item_p['cargo']}]** {item_p['nome']} *(Aguardando aprovação)*")
-            
-            # Modal/Expander de edição
+            col_info.write(
+                f"⏳ **[{item_p['cargo']}]** {item_p['nome']} *(Aguardando aprovação)*"
+            )
+
             with col_edt.popover("✏️ Editar"):
                 with st.form(f"form_edit_or_p_{idx_p}"):
-                    nc = st.selectbox("Novo Cargo", CARGOS_DISPONIVEIS, index=CARGOS_DISPONIVEIS.index(item_p['cargo']) if item_p['cargo'] in CARGOS_DISPONIVEIS else 0)
-                    nn = st.text_input("Novo Nome", value=item_p['nome'])
+                    nc = st.selectbox(
+                        "Novo Cargo",
+                        CARGOS_DISPONIVEIS,
+                        index=CARGOS_DISPONIVEIS.index(item_p["cargo"])
+                        if item_p["cargo"] in CARGOS_DISPONIVEIS
+                        else 0,
+                    )
+                    nn = st.text_input("Novo Nome", value=item_p["nome"])
                     if st.form_submit_button("Salvar") and nn:
-                        dados["pendentes_oracao"][turno_sel][idx_p] = {"cargo": nc, "nome": nn}
+                        dados["pendentes_oracao"][turno_sel][idx_p] = {
+                            "cargo": nc,
+                            "nome": nn,
+                        }
                         salvar_dados(dados)
                         st.rerun()
 
@@ -414,7 +427,7 @@ elif pagina == "⏰ Relógio de Oração":
     if dados["oracao"][turno_sel]:
         for i, item in enumerate(dados["oracao"][turno_sel]):
             c_txt, c_del = st.columns([4, 1])
-            cargo_str = f"[{item['cargo']}] " if item.get('cargo') else ""
+            cargo_str = f"[{item['cargo']}] " if item.get("cargo") else ""
             c_txt.write(f"🙏 **{cargo_str}**{item['nome']}")
             if es_admin and c_del.button("❌", key=f"del_or_{turno_sel}_{i}"):
                 dados["oracao"][turno_sel].pop(i)
@@ -445,24 +458,6 @@ elif pagina == "🗓️ Calendário de Jejum":
     if dia_sel not in dados["pendentes_jejum"]:
         dados["pendentes_jejum"][dia_sel] = []
 
-    # PAINEL DE APROVAÇÃO DO ADMIN
-    if es_admin and dados["pendentes_jejum"][dia_sel]:
-        st.warning("⚠️ **Cadastros Pendentes de Aprovação para este dia:**")
-        for idx_p, item_p in enumerate(list(dados["pendentes_jejum"][dia_sel])):
-            c_info, c_ok, c_rec = st.columns([3, 1, 1])
-            c_info.write(f"⏳ **[{item_p['cargo']}]** {item_p['nome']}")
-            if c_ok.button("✅ Aprovar", key=f"aprov_j_{dia_sel}_{idx_p}"):
-                dados["jejum"][dia_sel].append(item_p)
-                dados["pendentes_jejum"][dia_sel].pop(idx_p)
-                salvar_dados(dados)
-                st.success("Cadastro aprovado!")
-                st.rerun()
-            if c_rec.button("❌ Recusar", key=f"rec_j_{dia_sel}_{idx_p}"):
-                dados["pendentes_jejum"][dia_sel].pop(idx_p)
-                salvar_dados(dados)
-                st.rerun()
-        st.divider()
-
     # FORMULÁRIO DE CADASTRO
     with st.expander(f"📝 Cadastro para jejuar na {dia_sel}", expanded=True):
         if es_admin:
@@ -471,7 +466,9 @@ elif pagina == "🗓️ Calendário de Jejum":
                 cargo = c1.selectbox("Cargo", CARGOS_DISPONIVEIS)
                 nome = c2.text_input("Nome da Pessoa")
                 if st.form_submit_button("➕ Publicar Direto (Admin)") and nome:
-                    dados["jejum"][dia_sel].append({"cargo": cargo, "nome": nome})
+                    dados["jejum"][dia_sel].append(
+                        {"cargo": cargo, "nome": nome}
+                    )
                     salvar_dados(dados)
                     st.success("Pessoa adicionada ao jejum!")
                     st.rerun()
@@ -484,22 +481,37 @@ elif pagina == "🗓️ Calendário de Jejum":
                     novo_cad = {"cargo": cargo, "nome": nome}
                     dados["pendentes_jejum"][dia_sel].append(novo_cad)
                     salvar_dados(dados)
-                    st.info("⏳ Cadastro enviado com sucesso! Aguardando a aprovação do administrador.")
+                    st.info(
+                        "⏳ Cadastro enviado com sucesso! Aguardando a aprovação do administrador."
+                    )
                     st.rerun()
 
-    # MINHAS SOLICITAÇÕES PENDENTES
+    # SOLICITAÇÕES PENDENTES DO USUÁRIO NESTA SESSÃO
     if not es_admin and dados["pendentes_jejum"][dia_sel]:
         st.caption("Seus cadastros pendentes neste dia:")
-        for idx_p, item_p in enumerate(list(dados["pendentes_jejum"][dia_sel])):
+        for idx_p, item_p in enumerate(
+            list(dados["pendentes_jejum"][dia_sel])
+        ):
             col_info, col_edt, col_del = st.columns([3, 1, 1])
-            col_info.write(f"⏳ **[{item_p['cargo']}]** {item_p['nome']} *(Aguardando aprovação)*")
-            
+            col_info.write(
+                f"⏳ **[{item_p['cargo']}]** {item_p['nome']} *(Aguardando aprovação)*"
+            )
+
             with col_edt.popover("✏️ Editar"):
                 with st.form(f"form_edit_j_p_{idx_p}"):
-                    nc = st.selectbox("Novo Cargo", CARGOS_DISPONIVEIS, index=CARGOS_DISPONIVEIS.index(item_p['cargo']) if item_p['cargo'] in CARGOS_DISPONIVEIS else 0)
-                    nn = st.text_input("Novo Nome", value=item_p['nome'])
+                    nc = st.selectbox(
+                        "Novo Cargo",
+                        CARGOS_DISPONIVEIS,
+                        index=CARGOS_DISPONIVEIS.index(item_p["cargo"])
+                        if item_p["cargo"] in CARGOS_DISPONIVEIS
+                        else 0,
+                    )
+                    nn = st.text_input("Novo Nome", value=item_p["nome"])
                     if st.form_submit_button("Salvar") and nn:
-                        dados["pendentes_jejum"][dia_sel][idx_p] = {"cargo": nc, "nome": nn}
+                        dados["pendentes_jejum"][dia_sel][idx_p] = {
+                            "cargo": nc,
+                            "nome": nn,
+                        }
                         salvar_dados(dados)
                         st.rerun()
 
@@ -581,7 +593,7 @@ elif pagina == "👥 Discipuladores":
 
             if es_admin:
                 c_btn1, c_btn2 = col_info.columns(2)
-                
+
                 # Botão Excluir
                 if c_btn1.button("🗑️ Remover", key=f"del_disc_{idx}"):
                     dados["discipuladores"].pop(idx)
@@ -597,13 +609,26 @@ elif pagina == "👥 Discipuladores":
                             else 0
                         )
                         e_cargo = st.selectbox(
-                            "Cargo", CARGOS_DISPONIVEIS, index=index_cargo, key=f"ecargo_{idx}"
+                            "Cargo",
+                            CARGOS_DISPONIVEIS,
+                            index=index_cargo,
+                            key=f"ecargo_{idx}",
                         )
-                        e_nome = st.text_input("Nome", value=disc.get("nome", ""), key=f"enome_{idx}")
-                        e_dia = st.text_input("Dia", value=disc.get("dia", ""), key=f"edia_{idx}")
-                        e_horario = st.text_input("Horário", value=disc.get("horario", ""), key=f"ehora_{idx}")
+                        e_nome = st.text_input(
+                            "Nome", value=disc.get("nome", ""), key=f"enome_{idx}"
+                        )
+                        e_dia = st.text_input(
+                            "Dia", value=disc.get("dia", ""), key=f"edia_{idx}"
+                        )
+                        e_horario = st.text_input(
+                            "Horário",
+                            value=disc.get("horario", ""),
+                            key=f"ehora_{idx}",
+                        )
                         e_foto = st.file_uploader(
-                            "Trocar Foto (Opcional)", type=["png", "jpg", "jpeg"], key=f"efoto_{idx}"
+                            "Trocar Foto (Opcional)",
+                            type=["png", "jpg", "jpeg"],
+                            key=f"efoto_{idx}",
                         )
 
                         if st.form_submit_button("💾 Salvar Alterações"):
@@ -614,7 +639,9 @@ elif pagina == "👥 Discipuladores":
 
                             if e_foto:
                                 extensao = e_foto.name.split(".")[-1]
-                                caminho_foto = f"discipuladores/{e_nome}.{extensao}"
+                                caminho_foto = (
+                                    f"discipuladores/{e_nome}.{extensao}"
+                                )
                                 url_nova = upload_imagem(e_foto, caminho_foto)
                                 if url_nova:
                                     disc["foto"] = url_nova
@@ -655,3 +682,66 @@ elif pagina == "👥 Discipuladores":
                         salvar_dados(dados)
                         st.rerun()
         st.divider()
+
+# --- TELA 6: CENTRAL DE NOTIFICAÇÕES E APROVAÇÕES (ADMIN) ---
+elif "Solicitações" in pagina and es_admin:
+    st.title("🔔 Central de Notificações e Aprovações")
+    st.caption("Gerencie os cadastros enviados pelos membros antes de serem publicados.")
+
+    tab_oracao, tab_jejum = st.tabs(["⏰ Relógio de Oração", "🗓️ Calendário de Jejum"])
+
+    with tab_oracao:
+        st.subheader("Solicitações para o Relógio de Oração")
+        tem_pendentes_oracao = False
+
+        for turno, lista_p in list(dados.get("pendentes_oracao", {}).items()):
+            if lista_p:
+                tem_pendentes_oracao = True
+                st.markdown(f"##### 🕒 Turno: `{turno}`")
+                for idx_p, item_p in enumerate(list(lista_p)):
+                    c_info, c_ok, c_rec = st.columns([3, 1, 1])
+                    c_info.write(f"👤 **[{item_p['cargo']}]** {item_p['nome']}")
+
+                    if c_ok.button("✅ Aprovar", key=f"aprov_or_cent_{turno}_{idx_p}"):
+                        dados["oracao"].setdefault(turno, []).append(item_p)
+                        dados["pendentes_oracao"][turno].pop(idx_p)
+                        salvar_dados(dados)
+                        st.success("Cadastro aprovado!")
+                        st.rerun()
+
+                    if c_rec.button("❌ Recusar", key=f"rec_or_cent_{turno}_{idx_p}"):
+                        dados["pendentes_oracao"][turno].pop(idx_p)
+                        salvar_dados(dados)
+                        st.rerun()
+                st.divider()
+
+        if not tem_pendentes_oracao:
+            st.info("Nenhuma solicitação pendente para o Relógio de Oração.")
+
+    with tab_jejum:
+        st.subheader("Solicitações para o Calendário de Jejum")
+        tem_pendentes_jejum = False
+
+        for dia, lista_p in list(dados.get("pendentes_jejum", {}).items()):
+            if lista_p:
+                tem_pendentes_jejum = True
+                st.markdown(f"##### 📅 Dia: `{dia}`")
+                for idx_p, item_p in enumerate(list(lista_p)):
+                    c_info, c_ok, c_rec = st.columns([3, 1, 1])
+                    c_info.write(f"👤 **[{item_p['cargo']}]** {item_p['nome']}")
+
+                    if c_ok.button("✅ Aprovar", key=f"aprov_j_cent_{dia}_{idx_p}"):
+                        dados["jejum"].setdefault(dia, []).append(item_p)
+                        dados["pendentes_jejum"][dia].pop(idx_p)
+                        salvar_dados(dados)
+                        st.success("Cadastro aprovado!")
+                        st.rerun()
+
+                    if c_rec.button("❌ Recusar", key=f"rec_j_cent_{dia}_{idx_p}"):
+                        dados["pendentes_jejum"][dia].pop(idx_p)
+                        salvar_dados(dados)
+                        st.rerun()
+                st.divider()
+
+        if not tem_pendentes_jejum:
+            st.info("Nenhuma solicitação pendente para o Calendário de Jejum.")
