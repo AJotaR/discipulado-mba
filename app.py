@@ -132,6 +132,8 @@ def carregar_dados():
                 dados.setdefault("videos", {})
                 dados.setdefault("pendentes_oracao", {})
                 dados.setdefault("pendentes_jejum", {})
+                dados.setdefault("galeria_fotos", [])
+                dados.setdefault("comentarios_galeria", [])
                 return dados
         except Exception:
             pass
@@ -144,6 +146,8 @@ def carregar_dados():
         "videos": {},
         "pendentes_oracao": {},
         "pendentes_jejum": {},
+        "galeria_fotos": [],
+        "comentarios_galeria": [],
     }
 
 
@@ -240,6 +244,7 @@ opcoes_menu = [
     "⏰ Relógio de Oração",
     "🗓️ Calendário de Jejum",
     "👥 Discipuladores",
+    "📸 Galeria & Depoimentos",
 ]
 
 if st.session_state.es_admin:
@@ -790,7 +795,107 @@ elif pagina == "👥 Discipuladores":
                         st.rerun()
         st.divider()
 
-# --- TELA 6: CENTRAL DE NOTIFICAÇÕES E APROVAÇÕES (ADMIN) ---
+# --- TELA 6: GALERIA DE FOTOS & COMENTÁRIOS ---
+elif pagina == "📸 Galeria & Depoimentos":
+    st.title("📸 Galeria de Fotos & Depoimentos")
+    st.caption("Acompanhe os momentos do discipulado e deixe o seu comentário.")
+
+    dados.setdefault("galeria_fotos", [])
+    dados.setdefault("comentarios_galeria", [])
+
+    tab_galeria, tab_comentarios = st.tabs(["📸 Galeria de Fotos", "💬 Comentários e Depoimentos"])
+
+    with tab_galeria:
+        st.subheader("Fotos dos Encontros e Eventos")
+
+        if es_admin:
+            with st.expander("➕ Adicionar Nova Foto à Galeria (Admin)"):
+                with st.form("form_add_galeria"):
+                    titulo_f = st.text_input("Título da Foto (Ex: Encontro de Junho)")
+                    legenda_f = st.text_area("Legenda/Descrição")
+                    foto_f = st.file_uploader("Selecione a Imagem", type=["png", "jpg", "jpeg"])
+
+                    if st.form_submit_button("📤 Publicar Foto") and foto_f:
+                        extensao = foto_f.name.split(".")[-1]
+                        caminho_foto = f"galeria/{foto_f.name}"
+                        url_f = upload_imagem(foto_f, caminho_foto)
+
+                        if url_f:
+                            dados["galeria_fotos"].append({
+                                "titulo": titulo_f,
+                                "legenda": legenda_f,
+                                "url": url_f
+                            })
+                            salvar_dados(dados)
+                            st.success("Foto publicada com sucesso na galeria!")
+                            st.rerun()
+
+        st.divider()
+
+        fotos_lista = dados.get("galeria_fotos", [])
+        if fotos_lista:
+            # Exibe em grade de 2 colunas
+            cols = st.columns(2)
+            for idx_f, f_item in enumerate(fotos_lista):
+                col_atual = cols[idx_f % 2]
+                with col_atual:
+                    st.image(f_item["url"], use_container_width=True)
+                    if f_item.get("titulo"):
+                        st.markdown(f"### {f_item['titulo']}")
+                    if f_item.get("legenda"):
+                        st.write(f_item["legenda"])
+
+                    if es_admin:
+                        if st.button("🗑️ Excluir Foto", key=f"del_foto_gal_{idx_f}"):
+                            dados["galeria_fotos"].pop(idx_f)
+                            salvar_dados(dados)
+                            st.rerun()
+                    st.divider()
+        else:
+            st.info("Nenhuma foto publicada na galeria ainda.")
+
+    with tab_comentarios:
+        st.subheader("Mural de Comentários")
+
+        # Formulário para qualquer pessoa comentar
+        with st.expander("📝 Deixe o seu comentário ou testemunho", expanded=True):
+            with st.form("form_novo_comentario"):
+                c1, c2 = st.columns(2)
+                cargo_c = c1.selectbox("Seu Cargo:", CARGOS_DISPONIVEIS)
+                nome_c = c2.text_input("Seu Nome:")
+                mensagem_c = st.text_area("Seu Comentário / Testemunho:")
+
+                if st.form_submit_button("💬 Enviar Comentário") and nome_c and mensagem_c:
+                    dados["comentarios_galeria"].append({
+                        "cargo": cargo_c,
+                        "nome": nome_c,
+                        "mensagem": mensagem_c
+                    })
+                    salvar_dados(dados)
+                    st.success("Comentário publicado no mural!")
+                    st.rerun()
+
+        st.divider()
+
+        comentarios_lista = dados.get("comentarios_galeria", [])
+        if comentarios_lista:
+            for idx_c, c_item in enumerate(list(comentarios_lista)):
+                col_txt, col_del = st.columns([5, 1])
+                with col_txt:
+                    cargo_str = f"[{c_item['cargo']}] " if c_item.get("cargo") else ""
+                    st.markdown(f"👤 **{cargo_str}{c_item['nome']}** escreveu:")
+                    st.info(f"“{c_item['mensagem']}”")
+
+                if es_admin:
+                    if col_del.button("🗑️ Excluir", key=f"del_coment_{idx_c}"):
+                        dados["comentarios_galeria"].pop(idx_c)
+                        salvar_dados(dados)
+                        st.rerun()
+                st.divider()
+        else:
+            st.info("Nenhum comentário enviado ainda. Seja o primeiro a comentar!")
+
+# --- TELA 7: CENTRAL DE NOTIFICAÇÕES E APROVAÇÕES (ADMIN) ---
 elif "Solicitações" in pagina and es_admin:
     st.title("🔔 Central de Notificações e Aprovações")
     st.caption("Gerencie os cadastros enviados pelos membros antes de serem publicados.")
