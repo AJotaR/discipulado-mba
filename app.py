@@ -795,105 +795,133 @@ elif pagina == "👥 Discipuladores":
                         st.rerun()
         st.divider()
 
-# --- TELA 6: GALERIA DE FOTOS & COMENTÁRIOS ---
+# --- TELA 6: GALERIA DE FOTOS COM COMENTÁRIOS E CURTIDAS ---
 elif pagina == "📸 Galeria & Depoimentos":
     st.title("📸 Galeria de Fotos & Depoimentos")
-    st.caption("Acompanhe os momentos do discipulado e deixe o seu comentário.")
+    st.caption("Acompanhe os momentos do discipulado e deixe o seu comentário em cada foto.")
 
     dados.setdefault("galeria_fotos", [])
-    dados.setdefault("comentarios_galeria", [])
 
-    tab_galeria, tab_comentarios = st.tabs(["📸 Galeria de Fotos", "💬 Comentários e Depoimentos"])
+    if es_admin:
+        with st.expander("➕ Adicionar Nova Foto à Galeria (Admin)"):
+            with st.form("form_add_galeria"):
+                titulo_f = st.text_input("Título da Foto (Ex: Encontro de Junho)")
+                legenda_f = st.text_area("Legenda/Descrição")
+                foto_f = st.file_uploader("Selecione a Imagem", type=["png", "jpg", "jpeg"])
 
-    with tab_galeria:
-        st.subheader("Fotos dos Encontros e Eventos")
+                if st.form_submit_button("📤 Publicar Foto") and foto_f:
+                    caminho_foto = f"galeria/{foto_f.name}"
+                    url_f = upload_imagem(foto_f, caminho_foto)
 
-        if es_admin:
-            with st.expander("➕ Adicionar Nova Foto à Galeria (Admin)"):
-                with st.form("form_add_galeria"):
-                    titulo_f = st.text_input("Título da Foto (Ex: Encontro de Junho)")
-                    legenda_f = st.text_area("Legenda/Descrição")
-                    foto_f = st.file_uploader("Selecione a Imagem", type=["png", "jpg", "jpeg"])
+                    if url_f:
+                        dados["galeria_fotos"].append({
+                            "titulo": titulo_f,
+                            "legenda": legenda_f,
+                            "url": url_f,
+                            "comentarios": []
+                        })
+                        salvar_dados(dados)
+                        st.success("Foto publicada com sucesso na galeria!")
+                        st.rerun()
 
-                    if st.form_submit_button("📤 Publicar Foto") and foto_f:
-                        extensao = foto_f.name.split(".")[-1]
-                        caminho_foto = f"galeria/{foto_f.name}"
-                        url_f = upload_imagem(foto_f, caminho_foto)
+    st.divider()
 
-                        if url_f:
-                            dados["galeria_fotos"].append({
-                                "titulo": titulo_f,
-                                "legenda": legenda_f,
-                                "url": url_f
-                            })
-                            salvar_dados(dados)
-                            st.success("Foto publicada com sucesso na galeria!")
-                            st.rerun()
+    fotos_lista = dados.get("galeria_fotos", [])
+    if fotos_lista:
+        for idx_f, f_item in enumerate(fotos_lista):
+            f_item.setdefault("comentarios", [])
 
-        st.divider()
+            with st.container():
+                st.image(f_item["url"], use_container_width=True)
 
-        fotos_lista = dados.get("galeria_fotos", [])
-        if fotos_lista:
-            # Exibe em grade de 2 colunas
-            cols = st.columns(2)
-            for idx_f, f_item in enumerate(fotos_lista):
-                col_atual = cols[idx_f % 2]
-                with col_atual:
-                    st.image(f_item["url"], use_container_width=True)
+                col_tit, col_del_f = st.columns([5, 1])
+                with col_tit:
                     if f_item.get("titulo"):
                         st.markdown(f"### {f_item['titulo']}")
                     if f_item.get("legenda"):
                         st.write(f_item["legenda"])
 
-                    if es_admin:
-                        if st.button("🗑️ Excluir Foto", key=f"del_foto_gal_{idx_f}"):
-                            dados["galeria_fotos"].pop(idx_f)
-                            salvar_dados(dados)
-                            st.rerun()
-                    st.divider()
-        else:
-            st.info("Nenhuma foto publicada na galeria ainda.")
-
-    with tab_comentarios:
-        st.subheader("Mural de Comentários")
-
-        # Formulário para qualquer pessoa comentar
-        with st.expander("📝 Deixe o seu comentário ou testemunho", expanded=True):
-            with st.form("form_novo_comentario"):
-                c1, c2 = st.columns(2)
-                cargo_c = c1.selectbox("Seu Cargo:", CARGOS_DISPONIVEIS)
-                nome_c = c2.text_input("Seu Nome:")
-                mensagem_c = st.text_area("Seu Comentário / Testemunho:")
-
-                if st.form_submit_button("💬 Enviar Comentário") and nome_c and mensagem_c:
-                    dados["comentarios_galeria"].append({
-                        "cargo": cargo_c,
-                        "nome": nome_c,
-                        "mensagem": mensagem_c
-                    })
-                    salvar_dados(dados)
-                    st.success("Comentário publicado no mural!")
-                    st.rerun()
-
-        st.divider()
-
-        comentarios_lista = dados.get("comentarios_galeria", [])
-        if comentarios_lista:
-            for idx_c, c_item in enumerate(list(comentarios_lista)):
-                col_txt, col_del = st.columns([5, 1])
-                with col_txt:
-                    cargo_str = f"[{c_item['cargo']}] " if c_item.get("cargo") else ""
-                    st.markdown(f"👤 **{cargo_str}{c_item['nome']}** escreveu:")
-                    st.info(f"“{c_item['mensagem']}”")
-
                 if es_admin:
-                    if col_del.button("🗑️ Excluir", key=f"del_coment_{idx_c}"):
-                        dados["comentarios_galeria"].pop(idx_c)
+                    if col_del_f.button("🗑️ Excluir Foto", key=f"del_foto_{idx_f}"):
+                        dados["galeria_fotos"].pop(idx_f)
                         salvar_dados(dados)
                         st.rerun()
-                st.divider()
-        else:
-            st.info("Nenhum comentário enviado ainda. Seja o primeiro a comentar!")
+
+                # --- SEÇÃO DE COMENTÁRIOS DA FOTO ---
+                with st.expander(f"💬 Comentários desta foto ({len(f_item['comentarios'])})"):
+                    # Novo Comentário
+                    with st.form(f"form_coment_foto_{idx_f}"):
+                        c1, c2 = st.columns(2)
+                        cargo_c = c1.selectbox("Seu Cargo:", CARGOS_DISPONIVEIS, key=f"cg_{idx_f}")
+                        nome_c = c2.text_input("Seu Nome:", key=f"nm_{idx_f}")
+                        msg_c = st.text_area("Seu Comentário:", key=f"msg_{idx_f}")
+
+                        if st.form_submit_button("💬 Enviar Comentário") and nome_c and msg_c:
+                            f_item["comentarios"].append({
+                                "cargo": cargo_c,
+                                "nome": nome_c,
+                                "mensagem": msg_c,
+                                "curtidas": 0,
+                                "respostas": []
+                            })
+                            salvar_dados(dados)
+                            st.success("Comentário publicado!")
+                            st.rerun()
+
+                    # Lista de Comentários
+                    for idx_c, c_obj in enumerate(f_item["comentarios"]):
+                        c_obj.setdefault("curtidas", 0)
+                        c_obj.setdefault("respostas", [])
+
+                        st.markdown(f"**[{c_obj.get('cargo', 'Membro')}] {c_obj['nome']}**")
+                        st.info(f"“{c_obj['mensagem']}”")
+
+                        # Ações: Curtir, Responder e Excluir
+                        c_like, c_resp, c_del_c = st.columns([1.5, 2, 1])
+
+                        # Curtir
+                        if c_like.button(f"❤️ {c_obj['curtidas']}", key=f"like_{idx_f}_{idx_c}"):
+                            c_obj["curtidas"] += 1
+                            salvar_dados(dados)
+                            st.rerun()
+
+                        # Modal de Resposta
+                        with c_resp.popover("💬 Responder"):
+                            with st.form(f"form_resp_{idx_f}_{idx_c}"):
+                                r_cargo = st.selectbox("Seu Cargo", CARGOS_DISPONIVEIS, key=f"rcg_{idx_f}_{idx_c}")
+                                r_nome = st.text_input("Seu Nome", key=f"rnm_{idx_f}_{idx_c}")
+                                r_msg = st.text_area("Sua Resposta", key=f"rmsg_{idx_f}_{idx_c}")
+
+                                if st.form_submit_button("Enviar Resposta") and r_nome and r_msg:
+                                    c_obj["respostas"].append({
+                                        "cargo": r_cargo,
+                                        "nome": r_nome,
+                                        "mensagem": r_msg
+                                    })
+                                    salvar_dados(dados)
+                                    st.rerun()
+
+                        # Excluir Comentário (Admin)
+                        if es_admin and c_del_c.button("🗑️", key=f"del_c_{idx_f}_{idx_c}"):
+                            f_item["comentarios"].pop(idx_c)
+                            salvar_dados(dados)
+                            st.rerun()
+
+                        # Exibir Respostas
+                        if c_obj["respostas"]:
+                            for idx_r, r_obj in enumerate(c_obj["respostas"]):
+                                r_col1, r_col2 = st.columns([5, 1])
+                                r_col1.caption(f"↳ **[{r_obj.get('cargo', 'Membro')}] {r_obj['nome']}**: {r_obj['mensagem']}")
+                                if es_admin and r_col2.button("❌", key=f"del_r_{idx_f}_{idx_c}_{idx_r}"):
+                                    c_obj["respostas"].pop(idx_r)
+                                    salvar_dados(dados)
+                                    st.rerun()
+
+                        st.divider()
+
+            st.markdown("---")
+    else:
+        st.info("Nenhuma foto publicada na galeria ainda.")
 
 # --- TELA 7: CENTRAL DE NOTIFICAÇÕES E APROVAÇÕES (ADMIN) ---
 elif "Solicitações" in pagina and es_admin:
