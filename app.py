@@ -330,7 +330,15 @@ total_pendentes_oracao = sum(len(v) for v in dados.get("pendentes_oracao", {}).v
 total_pendentes_jejum = sum(len(v) for v in dados.get("pendentes_jejum", {}).values())
 total_geral_pendentes = total_pendentes_oracao + total_pendentes_jejum
 
-# --- BARRA LATERAL (MENU & ÁREA DO ADMIN) ---
+# --- BARRA LATERAL (LOGO NO TOPO, MENU & ÁREA DO ADMIN) ---
+
+# 1. LOGO COMPACTA E CENTRALIZADA NO TOPO (ONDE ESTAVA O 'X')
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    col_e1, col_logo_topo, col_e2 = st.sidebar.columns([1, 2, 1])
+    with col_logo_topo:
+        st.image(logo_path, width=120)
+
 st.sidebar.title("📖 Discipulado MBA")
 
 opcoes_menu = [
@@ -405,13 +413,6 @@ else:
     if st.sidebar.button("🚪 Sair do modo Admin"):
         st.session_state.es_admin = False
         st.rerun()
-
-st.sidebar.divider()
-logo_path = "logo.png"
-if os.path.exists(logo_path):
-    col_v1, col_logo, col_v2 = st.sidebar.columns([1, 3, 1])
-    with col_logo:
-        st.image(logo_path, width=180)
 
 es_admin = st.session_state.es_admin
 
