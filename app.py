@@ -2,6 +2,7 @@ import json
 import os
 import re
 import random
+import urllib.parse
 import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
@@ -491,6 +492,7 @@ elif pagina == "🎬 Vídeos & Aulas":
 # --- TELA 3: LEITURA BÍBLICA ---
 elif pagina == "📖 Leitura Bíblica":
     st.title("📖 Plano de Leitura Bíblica Mensal")
+    st.caption("Clique em qualquer passagem para ler online na versão ARC (Almeida Revista e Corrigida).")
 
     mes_sel = st.selectbox(
         "Selecione o Mês",
@@ -503,7 +505,7 @@ elif pagina == "📖 Leitura Bíblica":
 
     if es_admin:
         col1, col2 = st.columns([3, 1])
-        nova_leitura = col1.text_input("Nova leitura (Ex: Dia 01: Mateus 1-4)")
+        nova_leitura = col1.text_input("Nova leitura (Ex: 01/07 Êxodo 30 • Lucas 1 • Salmos 62 • Provérbios 31)")
         if col2.button("➕ Adicionar Leitura") and nova_leitura:
             dados["leitura"][mes_sel].append({"texto": nova_leitura, "concluido": False})
             salvar_dados(dados)
@@ -512,13 +514,42 @@ elif pagina == "📖 Leitura Bíblica":
     st.divider()
 
     for i, item in enumerate(dados["leitura"][mes_sel]):
-        col_chk, col_del = st.columns([4, 1])
+        col_chk, col_txt, col_del = st.columns([0.4, 4.6, 0.5])
+        
+        # Checkbox de conclusão da leitura
         status = col_chk.checkbox(
-            item["texto"], value=item.get("concluido", False), key=f"chk_{mes_sel}_{i}"
+            "", value=item.get("concluido", False), key=f"chk_{mes_sel}_{i}"
         )
         if status != item.get("concluido", False):
             dados["leitura"][mes_sel][i]["concluido"] = status
             salvar_dados(dados)
+
+        # Processamento e montagem dos links bíblicos para a versão ARC
+        texto_original = item["texto"]
+        partes = texto_original.replace("•", "|").split("|")
+        
+        links_html = []
+        for p in partes:
+            trecho = p.strip()
+            if not trecho:
+                continue
+            
+            # Se for apenas a data (ex: "01/07"), exibe como destaque
+            if "/" in trecho and len(trecho) <= 5:
+                links_html.append(f"<b style='font-size: 1.05rem; color: #1e3a8a;'>{trecho}</b>")
+            else:
+                link_arc = f"https://www.bibliaonline.com.br/arc/busca?q={urllib.parse.quote(trecho)}"
+                links_html.append(
+                    f'<a href="{link_arc}" target="_blank" style="text-decoration: none; color: #0284c7; font-weight: 500;" title="Abrir na Bíblia Online ARC">📖 {trecho}</a>'
+                )
+        
+        texto_formatado = " &nbsp;•&nbsp; ".join(links_html)
+        
+        # Estilização visual (riscado se concluído)
+        if item.get("concluido", False):
+            col_txt.markdown(f"<div style='margin-top: 5px; text-decoration: line-through; opacity: 0.55;'>{texto_formatado}</div>", unsafe_allow_html=True)
+        else:
+            col_txt.markdown(f"<div style='margin-top: 5px;'>{texto_formatado}</div>", unsafe_allow_html=True)
 
         if es_admin:
             if col_del.button("❌", key=f"del_leit_{mes_sel}_{i}"):
