@@ -142,7 +142,6 @@ def carregar_dados():
                 dados.setdefault("galeria_fotos", [])
                 dados.setdefault("comentarios_galeria", [])
                 
-                # Garantir que cadastros antigos de discipuladores possuam o campo 'dia'
                 for disc in dados["discipuladores"]:
                     if "dia" not in disc or disc["dia"] not in DIAS_SEMANA_ORDEM:
                         disc["dia"] = "Segunda-feira"
@@ -224,6 +223,10 @@ if "es_admin" not in st.session_state:
     st.session_state.es_admin = False
 if "mostrar_campo_senha" not in st.session_state:
     st.session_state.mostrar_campo_senha = False
+if "palavra_caca_atual" not in st.session_state:
+    st.session_state.palavra_caca_atual = ""
+if "palavras_encontradas" not in st.session_state:
+    st.session_state.palavras_encontradas = []
 
 # --- CONTAGEM DE SOLICITAÇÕES PENDENTES ---
 total_pendentes_oracao = sum(len(v) for v in dados.get("pendentes_oracao", {}).values())
@@ -880,78 +883,135 @@ elif pagina == "🎮 Jogos Bíblicos":
     st.title("🎮 Jogos Bíblicos & Edificação")
     st.caption("Aprenda a palavra de Deus e fortaleça seus conhecimentos do Discipulado se divertindo!")
 
-    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras", "🧩 Palavras Cruzadas"])
+    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras (12 Palavras)", "🧩 Palavras Cruzadas"])
 
+    # 1. CAÇA-PALAVRAS
     with aba_caca:
-        st.subheader("🔍 Caça-Palavras do Discipulado")
-        st.write("Encontre as palavras escondidas na grade abaixo:")
-
-        palavras_caca = ["DISCIPULO", "REINO", "ORACAO", "JEJUM", "FE", "AMOR", "ENSINO"]
-        st.info("📌 **Palavras para procurar:** " + ", ".join(palavras_caca))
-
-        grid_letras = [
-            ["D", "I", "S", "C", "I", "P", "U", "L", "O", "X"],
-            ["R", "A", "M", "O", "R", "B", "C", "D", "R", "E"],
-            ["E", "K", "J", "E", "J", "U", "M", "F", "A", "N"],
-            ["I", "G", "H", "I", "J", "K", "L", "M", "C", "S"],
-            ["N", "N", "O", "P", "Q", "R", "S", "T", "A", "I"],
-            ["O", "U", "V", "W", "X", "Y", "Z", "A", "O", "N"],
-            ["F", "E", "B", "C", "D", "E", "F", "G", "H", "O"],
+        st.subheader("🔍 Caça-Palavras Interativo do Discipulado")
+        
+        LISTA_12_PALAVRAS = [
+            "DISCIPULADO", "JESUS", "OBEDIENCIA", "SERVICO", "AMOR", "JEJUM", 
+            "ORACAO", "FE", "BIBLIA", "ESPIRITOSANTO", "DEUS", "ARVOREDO"
         ]
 
-        grid_html = "<div style='display: grid; grid-template-columns: repeat(10, 38px); gap: 6px; font-weight: bold; margin-bottom: 15px;'>"
-        for row in grid_letras:
-            for char in row:
-                grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 18px;'>{char}</div>"
-        grid_html += "</div>"
-        st.markdown(grid_html, unsafe_allow_html=True)
+        col_p1, col_p2 = st.columns([2, 1])
 
-        palavra_encontrada = st.text_input("Digite uma palavra que você encontrou:", key="input_caca").strip().upper()
-        if st.button("Verificar Palavra"):
-            if palavra_encontrada in palavras_caca:
-                st.success(f"🎉 Parabéns! Você encontrou a palavra **{palavra_encontrada}**!")
-            elif palavra_encontrada:
-                st.warning("Essa palavra não está na lista ou está incorreta. Tente novamente!")
+        with col_p2:
+            st.markdown("### 📌 Palavras para encontrar:")
+            for p in LISTA_12_PALAVRAS:
+                if p in st.session_state.palavras_encontradas:
+                    st.markdown(f"✅ ~~**{p}**~~ *(Encontrada)*")
+                else:
+                    st.markdown(f"⚪ **{p}**")
 
+            st.divider()
+            if st.button("🔄 Reiniciar Jogo"):
+                st.session_state.palavra_caca_atual = ""
+                st.session_state.palavras_encontradas = []
+                st.rerun()
+
+        with col_p1:
+            grid_letras_12 = [
+                ["D", "I", "S", "C", "I", "P", "U", "L", "A", "D", "O", "X"],
+                ["J", "E", "S", "U", "S", "A", "M", "O", "R", "F", "E", "O"],
+                ["O", "B", "E", "D", "I", "E", "N", "C", "I", "A", "P", "R"],
+                ["S", "E", "R", "V", "I", "C", "O", "J", "E", "J", "U", "M"],
+                ["O", "R", "A", "C", "A", "O", "B", "I", "B", "L", "I", "A"],
+                ["E", "S", "P", "I", "R", "I", "T", "O", "S", "A", "N", "T"],
+                ["D", "E", "U", "S", "A", "R", "V", "O", "R", "E", "D", "O"],
+            ]
+
+            st.write("Clique nas letras na sequência para formar a palavra:")
+            
+            for row_idx, line in enumerate(grid_letras_12):
+                cols = st.columns(len(line))
+                for col_idx, char in enumerate(line):
+                    if cols[col_idx].button(char, key=f"btn_caca_{row_idx}_{col_idx}"):
+                        st.session_state.palavra_caca_atual += char
+                        st.rerun()
+
+            st.markdown(f"**Palavra Selecionada:** `{st.session_state.palavra_caca_atual}`")
+
+            c_btn1, c_btn2 = st.columns(2)
+            if c_btn1.button("✅ Confirmar Palavra Selecionada"):
+                pal_limpa = st.session_state.palavra_caca_atual
+                if pal_limpa in LISTA_12_PALAVRAS:
+                    if pal_limpa not in st.session_state.palavras_encontradas:
+                        st.session_state.palavras_encontradas.append(pal_limpa)
+                        st.success(f"🎉 Parabéns! Você encontrou a palavra **{pal_limpa}**!")
+                    else:
+                        st.warning("Você já encontrou essa palavra!")
+                else:
+                    st.error(f"A palavra **{pal_limpa}** não é uma das palavras válidas do jogo. Tente novamente!")
+                st.session_state.palavra_caca_atual = ""
+                st.rerun()
+
+            if c_btn2.button("🧹 Limpar Seleção"):
+                st.session_state.palavra_caca_atual = ""
+                st.rerun()
+
+    # 2. PALAVRAS CRUZADAS
     with aba_cruzada:
         st.subheader("🧩 Palavras Cruzadas do Discipulado")
-        st.write("Responda às perguntas bíblicas abaixo para completar o desafio:")
+        st.caption("Preencha as respostas das pistas horizontais e verticais:")
 
-        with st.form("form_cruzadinha"):
-            resp1 = st.text_input("1. O que significa ensinar e formar seguidores de Jesus? (9 letras)").strip().upper()
-            resp2 = st.text_input("2. Falamos com Deus através da... (6 letras)").strip().upper()
-            resp3 = st.text_input("3. Prática de abstenção de alimentos por um propósito espiritual (5 letras)").strip().upper()
-            resp4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)").strip().upper()
+        # Layout estilo diagrama
+        st.markdown(
+            """
+            <div style="background-color: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px;">
+                <p style="color: #4CAF50; font-weight: bold; margin-bottom: 5px;">📍 ESTRUTURA DO DIAGRAMA:</p>
+                <small style="color: #ccc;">
+                    <b>[1-H]</b> _ _ _ _ _ _ _ _ _ (9 letras) &nbsp;|&nbsp; 
+                    <b>[2-V]</b> _ _ _ _ _ (5 letras) &nbsp;|&nbsp; 
+                    <b>[3-H]</b> _ _ _ _ _ _ (6 letras) <br>
+                    <b>[4-V]</b> _ _ _ _ _ (5 letras) &nbsp;|&nbsp; 
+                    <b>[5-H]</b> _ _ _ _ _ _ _ _ (8 letras) &nbsp;|&nbsp; 
+                    <b>[6-V]</b> _ _ _ _ _ _ _ _ _ _ _ _ _ (13 letras)
+                </small>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-            if st.form_submit_button("Conferir Respostas"):
+        with st.form("form_palavras_cruzadas"):
+            col_h, col_v = st.columns(2)
+
+            with col_h:
+                st.markdown("#### ➡️ Horizontais")
+                rc1 = st.text_input("1. Formar seguidores e alunos fiéis de Jesus (9 letras)", key="pc_1").strip().upper()
+                rc3 = st.text_input("3. Comunicação constante e íntima com Deus (6 letras)", key="pc_3").strip().upper()
+                rc5 = st.text_input("5. Nome da nossa sede e ministério batista (8 letras)", key="pc_5").strip().upper()
+
+            with col_v:
+                st.markdown("#### ⬇️ Verticais")
+                rc2 = st.text_input("2. Prática de abstenção por propósito espiritual (5 letras)", key="pc_2").strip().upper()
+                rc4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)", key="pc_4").strip().upper()
+                rc6 = st.text_input("6. O Consolador enviado por Jesus para guiar a Igreja (13 letras)", key="pc_6").strip().upper()
+
+            if st.form_submit_button("🏆 Conferir Todas as Respostas"):
                 acertos = 0
-                if resp1 == "DISCIPULADO":
-                    st.success("1. Correto! (DISCIPULADO)")
-                    acertos += 1
-                else:
-                    st.error("1. Incorreto.")
+                GABARITO = {
+                    "1": ("DISCIPULADO", rc1),
+                    "2": ("JEJUM", rc2),
+                    "3": ("ORACAO", rc3),
+                    "4": ("REINO", rc4),
+                    "5": ("ARVOREDO", rc5),
+                    "6": ("ESPIRITOSANTO", rc6),
+                }
 
-                if resp2 == "ORACAO":
-                    st.success("2. Correto! (ORACAO)")
-                    acertos += 1
-                else:
-                    st.error("2. Incorreto.")
+                st.divider()
+                st.markdown("### 📊 Resultado da Verificação:")
 
-                if resp3 == "JEJUM":
-                    st.success("3. Correto! (JEJUM)")
-                    acertos += 1
-                else:
-                    st.error("3. Incorreto.")
+                for num, (correto, resposta) in GABARITO.items():
+                    if resposta == correto:
+                        st.success(f"✅ Pergunta {num}: Correto! (`{correto}`)")
+                        acertos += 1
+                    else:
+                        st.error(f"❌ Pergunta {num}: Incorreto ou incompleto.")
 
-                if resp4 == "REINO":
-                    st.success("4. Correto! (REINO)")
-                    acertos += 1
-                else:
-                    st.error("4. Incorreto.")
-
-                if acertos == 4:
+                if acertos == 6:
                     st.balloons()
-                    st.success("🏆 Sensacional! Você acertou todas as perguntas!")
+                    st.success("🎉 PARABÉNS! Você completou todas as Palavras Cruzadas com perfeição!")
 
 # --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
