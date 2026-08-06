@@ -881,163 +881,163 @@ elif pagina == "🎮 Jogos Bíblicos":
     st.title("🎮 Jogos Bíblicos & Edificação")
     st.caption("Aprenda a palavra de Deus e fortaleça seus conhecimentos do Discipulado se divertindo!")
 
-    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras (12 Palavras)", "🧩 Palavras Cruzadas"])
+    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras Oculto (10 Palavras)", "🧩 Palavras Cruzadas"])
 
-    # 1. CAÇA-PALAVRAS
+    # 1. CAÇA-PALAVRAS OCULTO
     with aba_caca:
-        st.subheader("🔍 Caça-Palavras do Discipulado")
-        st.caption("Encontre as palavras na grade e digite abaixo para pontuar!")
+        st.subheader("🔍 Caça-Palavras Oculto do Discipulado")
+        st.write("Procure as 10 palavras escondidas na grade abaixo. As palavras estão OCULTAS!")
 
-        LISTA_12_PALAVRAS = [
-            "DISCIPULADO", "JESUS", "OBEDIENCIA", "SERVICO", "AMOR", "JEJUM", 
-            "ORACAO", "FE", "BIBLIA", "ESPIRITOSANTO", "DEUS", "ARVOREDO"
+        # As 10 palavras secretas
+        GABARITO_10_OCULTAS = [
+            "DISCIPULADO", "JESUS", "OBEDIENCIA", "SERVICO", "AMOR",
+            "JEJUM", "ORACAO", "BIBLIA", "ARVOREDO", "REINO"
         ]
 
-        col_grid, col_lista = st.columns([2.2, 1])
+        total_palavras = len(GABARITO_10_OCULTAS)
+        encontradas = len(st.session_state.palavras_encontradas)
+        faltando = total_palavras - encontradas
 
-        with col_lista:
-            st.markdown("### 📌 Palavras (12):")
-            for p in LISTA_12_PALAVRAS:
-                if p in st.session_state.palavras_encontradas:
-                    st.markdown(f"✅ ~~**{p}**~~")
-                else:
-                    st.markdown(f"⚪ **{p}**")
+        # Placar dinâmico
+        if faltando == 0:
+            st.balloons()
+            st.success("🏆 PARABÉNS! VOCÊ ENCONTROU TODAS AS 10 PALAVRAS OCULTAS!")
+        else:
+            st.info(f"🎯 **Progresso:** Você encontrou **{encontradas}** de {total_palavras} palavras. **(Faltam {faltando})**")
 
-            st.divider()
-            if st.button("🔄 Reiniciar Caça-Palavras"):
-                st.session_state.palavras_encontradas = []
-                st.rerun()
+        grid_letras_ocultas = [
+            ["D", "I", "S", "C", "I", "P", "U", "L", "A", "D", "O", "X"],
+            ["J", "E", "S", "U", "S", "A", "M", "O", "R", "F", "E", "O"],
+            ["O", "B", "E", "D", "I", "E", "N", "C", "I", "A", "P", "R"],
+            ["S", "E", "R", "V", "I", "C", "O", "J", "E", "J", "U", "M"],
+            ["O", "R", "A", "C", "A", "O", "B", "I", "B", "L", "I", "A"],
+            ["A", "R", "V", "O", "R", "E", "D", "O", "R", "E", "I", "N"],
+            ["D", "E", "U", "S", "A", "R", "V", "O", "R", "E", "D", "O"],
+        ]
 
-        with col_grid:
-            grid_letras_12 = [
-                ["D", "I", "S", "C", "I", "P", "U", "L", "A", "D", "O", "X"],
-                ["J", "E", "S", "U", "S", "A", "M", "O", "R", "F", "E", "O"],
-                ["O", "B", "E", "D", "I", "E", "N", "C", "I", "A", "P", "R"],
-                ["S", "E", "R", "V", "I", "C", "O", "J", "E", "J", "U", "M"],
-                ["O", "R", "A", "C", "A", "O", "B", "I", "B", "L", "I", "A"],
-                ["E", "S", "P", "I", "R", "I", "T", "O", "S", "A", "N", "T"],
-                ["D", "E", "U", "S", "A", "R", "V", "O", "R", "E", "D", "O"],
-            ]
+        # Exibição da grade de letras em CSS
+        grid_html = "<div style='display: grid; grid-template-columns: repeat(12, minmax(22px, 36px)); gap: 4px; font-weight: bold; margin-bottom: 20px;'>"
+        for row in grid_letras_ocultas:
+            for char in row:
+                grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px;'>{char}</div>"
+        grid_html += "</div>"
+        st.markdown(grid_html, unsafe_allow_html=True)
 
-            # Renderização de grade em CSS super leve
-            grid_html = "<div style='display: grid; grid-template-columns: repeat(12, minmax(22px, 36px)); gap: 4px; font-weight: bold; margin-bottom: 20px;'>"
-            for row in grid_letras_12:
-                for char in row:
-                    grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px;'>{char}</div>"
-            grid_html += "</div>"
-            st.markdown(grid_html, unsafe_allow_html=True)
-
-            with st.form("form_caca_palavra"):
-                pal_digitada = st.selectbox("Selecione ou digite a palavra encontrada:", [""] + LISTA_12_PALAVRAS)
+        with st.form("form_caca_oculto"):
+            col_inp, col_btn = st.columns([3, 1])
+            pal_tentativa = col_inp.text_input("Digite uma palavra que você achou na grade:").strip().upper()
+            
+            if col_btn.form_submit_button("🔍 Enviar Palavra"):
+                # Remover acentos comuns de digitação
+                pal_limpa = pal_tentativa.replace("Ç", "C").replace("Ã", "A").replace("Õ", "O").replace("É", "E")
                 
-                if st.form_submit_button("✅ Verificar Palavra"):
-                    if pal_digitada:
-                        if pal_digitada in LISTA_12_PALAVRAS:
-                            if pal_digitada not in st.session_state.palavras_encontradas:
-                                st.session_state.palavras_encontradas.append(pal_digitada)
-                                st.success(f"🎉 Excelente! Você encontrou **{pal_digitada}**!")
-                                st.rerun()
-                            else:
-                                st.warning("Você já marcou essa palavra!")
-                        else:
-                            st.error("Palavra incorreta. Procure com atenção na grade!")
+                if pal_limpa in GABARITO_10_OCULTAS:
+                    if pal_limpa not in st.session_state.palavras_encontradas:
+                        st.session_state.palavras_encontradas.append(pal_limpa)
+                        st.success(f"🎉 Correto! A palavra **{pal_limpa}** faz parte do jogo!")
+                        st.rerun()
+                    else:
+                        st.warning("Você já encontrou essa palavra antes!")
+                elif pal_limpa:
+                    st.error("Essa palavra não está oculta no caça-palavras ou está incorreta. Tente novamente!")
 
-    # 2. PALAVRAS CRUZADAS
+        if st.session_state.palavras_encontradas:
+            st.markdown("##### 📝 Palavras que você já descobriu:")
+            st.write(", ".join([f"✅ {p}" for p in st.session_state.palavras_encontradas]))
+
+        if st.button("🔄 Reiniciar Jogo de Caça-Palavras"):
+            st.session_state.palavras_encontradas = []
+            st.rerun()
+
+    # 2. PALAVRAS CRUZADAS COM CRUZAMENTO REAL
     with aba_cruzada:
         st.subheader("🧩 Palavras Cruzadas do Discipulado")
-        st.caption("Diagrama interativo do jogo:")
+        st.caption("Complete as palavras no diagrama onde as respostas se cruzam exatamente nas letras correspondentes!")
 
-        # Layout visual estilo tabuleiro de jogo impresso
+        # Diagrama CSS de cruzamento real
         st.markdown(
             """
             <style>
-            .cruzada-grid {
+            .cruzada-real-grid {
                 display: grid;
-                grid-template-columns: repeat(13, 30px);
+                grid-template-columns: repeat(12, 32px);
                 gap: 2px;
                 background-color: #000;
-                padding: 5px;
+                padding: 6px;
                 border-radius: 8px;
                 width: fit-content;
                 margin-bottom: 20px;
             }
-            .cell {
-                width: 30px;
-                height: 30px;
+            .cell-box {
+                width: 32px;
+                height: 32px;
                 background-color: #fff;
                 color: #000;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 11px;
+                font-size: 13px;
                 font-weight: bold;
                 position: relative;
             }
-            .black { background-color: #111; }
-            .num { position: absolute; top: 1px; left: 2px; font-size: 8px; color: #d32f2f; }
+            .cell-black { background-color: #1a1a1a; }
+            .cell-num { position: absolute; top: 1px; left: 2px; font-size: 9px; color: #d32f2f; font-weight: bold; }
             </style>
 
-            <div class="cruzada-grid">
-                <!-- Linha 1 -->
-                <div class="cell"><span class="num">1</span>D</div><div class="cell">I</div><div class="cell">S</div><div class="cell">C</div><div class="cell">I</div><div class="cell">P</div><div class="cell">U</div><div class="cell">L</div><div class="cell">A</div><div class="cell">D</div><div class="cell">O</div><div class="black"></div><div class="black"></div>
+            <div class="cruzada-real-grid">
+                <!-- Linha 1: 1-H: DISCIPULADO -->
+                <div class="cell-box"><span class="cell-num">1</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div>
                 <!-- Linha 2 -->
-                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell"><span class="num">2</span>J</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">2</span>_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
                 <!-- Linha 3 -->
-                <div class="black"></div><div class="black"></div><div class="cell"><span class="num">3</span>O</div><div class="cell">R</div><div class="cell">A</div><div class="cell">C</div><div class="cell">A</div><div class="cell">O</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
-                <!-- Linha 4 -->
-                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell">U</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
+                <!-- Linha 4: 3-H: ORACAO (Compartilha o O com o U de JEJUM) -->
+                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">3</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div>
                 <!-- Linha 5 -->
-                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell">M</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
-                <!-- Linha 6 -->
-                <div class="cell"><span class="num">4</span>R</div><div class="cell">E</div><div class="cell">I</div><div class="cell">N</div><div class="cell">O</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
-                <!-- Linha 7 -->
-                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell"><span class="num">5</span>A</div><div class="cell">R</div><div class="cell">V</div><div class="cell">O</div><div class="cell">R</div><div class="cell">E</div><div class="cell">D</div><div class="cell">O</div>
-                <!-- Linha 8 -->
-                <div class="cell"><span class="num">6</span>E</div><div class="cell">S</div><div class="cell">P</div><div class="cell">I</div><div class="cell">R</div><div class="cell">I</div><div class="cell">T</div><div class="cell">O</div><div class="cell">S</div><div class="cell">A</div><div class="cell">N</div><div class="cell">T</div><div class="cell">O</div>
+                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
+                <!-- Linha 6: 4-H: ARVOREDO -->
+                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">4</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        with st.form("form_palavras_cruzadas"):
-            col_h, col_v = st.columns(2)
+        st.markdown("### ❓ Responda às Perguntas do Diagrama:")
 
-            with col_h:
+        with st.form("form_cruzada_real"):
+            col_perg1, col_perg2 = st.columns(2)
+
+            with col_perg1:
                 st.markdown("#### ➡️ Horizontais")
-                rc1 = st.text_input("1. Formar seguidores e alunos fiéis de Jesus (9 letras)", key="pc_1").strip().upper()
-                rc3 = st.text_input("3. Comunicação constante e íntima com Deus (6 letras)", key="pc_3").strip().upper()
-                rc4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)", key="pc_4").strip().upper()
-                rc5 = st.text_input("5. Nome da nossa sede e ministério batista (8 letras)", key="pc_5").strip().upper()
+                p1 = st.text_input("1-H. Formar seguidores e alunos fiéis de Jesus (11 letras)", key="real_pc1").strip().upper()
+                p3 = st.text_input("3-H. Comunicação constante e íntima com Deus (6 letras)", key="real_pc3").strip().upper()
+                p4 = st.text_input("4-H. Nome da nossa sede e ministério batista (8 letras)", key="real_pc4").strip().upper()
 
-            with col_v:
+            with col_perg2:
                 st.markdown("#### ⬇️ Verticais")
-                rc2 = st.text_input("2. Prática de abstenção por propósito espiritual (5 letras)", key="pc_2").strip().upper()
-                rc6 = st.text_input("6. O Consolador enviado por Jesus para guiar a Igreja (13 letras)", key="pc_6").strip().upper()
+                p2 = st.text_input("2-V. Prática de abstenção de alimentos por propósito espiritual (5 letras)", key="real_pc2").strip().upper()
 
-            if st.form_submit_button("🏆 Conferir Todas as Respostas"):
-                acertos = 0
-                GABARITO = {
-                    "1": ("DISCIPULADO", rc1),
-                    "2": ("JEJUM", rc2),
-                    "3": ("ORACAO", rc3),
-                    "4": ("REINO", rc4),
-                    "5": ("ARVOREDO", rc5),
-                    "6": ("ESPIRITOSANTO", rc6),
+            if st.form_submit_button("🏆 Conferir Cruzadinha"):
+                GAB_REAL = {
+                    "1-H": ("DISCIPULADO", p1),
+                    "2-V": ("JEJUM", p2),
+                    "3-H": ("ORACAO", p3),
+                    "4-H": ("ARVOREDO", p4)
                 }
 
                 st.divider()
-                st.markdown("### 📊 Resultado:")
-
-                for num, (correto, resposta) in GABARITO.items():
-                    if resposta == correto:
-                        st.success(f"✅ Palavra {num}: Correto! (`{correto}`)")
-                        acertos += 1
+                acertos_c = 0
+                for chave, (correto, resp) in GAB_REAL.items():
+                    resp_limpa = resp.replace("Ç", "C").replace("Ã", "A")
+                    if resp_limpa == correto:
+                        st.success(f"✅ Item {chave}: Correto! (`{correto}`)")
+                        acertos_c += 1
                     else:
-                        st.error(f"❌ Palavra {num}: Incorreto.")
+                        st.error(f"❌ Item {chave}: Incorreto ou em branco.")
 
-                if acertos == 6:
+                if acertos_c == 4:
                     st.balloons()
-                    st.success("🎉 PARABÉNS! Você completou o desafio das Palavras Cruzadas!")
+                    st.success("🎉 PARABÉNS! Você completou o diagrama de Palavras Cruzadas perfeitamente!")
 
 # --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
