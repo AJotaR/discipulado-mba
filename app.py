@@ -332,7 +332,6 @@ total_geral_pendentes = total_pendentes_oracao + total_pendentes_jejum
 
 # --- BARRA LATERAL (LOGO NO TOPO, MENU & ÁREA DO ADMIN) ---
 
-# 1. LOGO COMPACTA E CENTRALIZADA NO TOPO (ONDE ESTAVA O 'X')
 logo_path = "logo.png"
 if os.path.exists(logo_path):
     col_e1, col_logo_topo, col_e2 = st.sidebar.columns([1, 2, 1])
@@ -792,7 +791,7 @@ elif pagina == "👥 Discipuladores":
                 nome = c2.text_input("Nome do Discipulador(a)")
                 dia = c1.selectbox("Dia do Encontro", DIAS_SEMANA_ORDEM)
                 horario = c2.text_input("Horário (ex: 19:30)")
-                link_whatsapp = st.text_input("Link do Grupo do WhatsApp (ex: https://chat.whatsapp.com/...)")
+                link_whatsapp = st.text_input("Link do Grupo do WhatsApp (ex: https://chat.whatsapp.com/... ou https://wa.me/55...)")
                 foto_file = st.file_uploader("Foto do Discipulador", type=["png", "jpg", "jpeg"])
 
                 if st.form_submit_button("Salvar Discipulador") and nome:
@@ -851,9 +850,18 @@ elif pagina == "👥 Discipuladores":
 
                         link_wa = disc.get("whatsapp", "").strip()
                         if link_wa:
+                            # Mensagem padrão predefinida para o WhatsApp
+                            mensagem_padrao = urllib.parse.quote("Paz do Senhor, gostaria de participar do discipulado")
+                            
+                            # Adiciona a mensagem ao link, mantendo compatibilidade com links de grupos ou números
+                            if "?" in link_wa:
+                                link_wa_com_msg = f"{link_wa}&text={mensagem_padrao}"
+                            else:
+                                link_wa_com_msg = f"{link_wa}?text={mensagem_padrao}"
+
                             col_info.markdown(
                                 f"""
-                                <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                                <a href="{link_wa_com_msg}" target="_blank" style="text-decoration: none;">
                                     <div style="
                                         background-color: #25D366;
                                         color: white;
