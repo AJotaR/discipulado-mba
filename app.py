@@ -108,8 +108,8 @@ def extrair_perguntas_do_html_do_quiz(html_str):
     """Lê qualquer arquivo HTML de quiz (seja com q/o/a/r ou question/options)."""
     perguntas_encontradas = []
 
-    # Limpar marcações de citação do tipo[cite: 1]
-    html_limpo = re.sub(r'\', '', html_str)
+    # Limpar marcações de citação do tipo
+    html_limpo = re.sub(r'\+\]', '', html_str)
 
     # TENTATIVA 1: Padrão Resumido (quizData com q, o, a, r)
     match_quizdata = re.search(r'const\s+quizData\s*=\s*\[(.*?)\];\s*let', html_limpo, re.DOTALL)
@@ -118,7 +118,6 @@ def extrair_perguntas_do_html_do_quiz(html_str):
 
     if match_quizdata:
         bloco_qd = match_quizdata.group(1)
-        # Separa cada item
         itens = re.findall(r'\{\s*q\s*:\s*["\'](.*?)["\']\s*,\s*o\s*:\s*\[(.*?)\]\s*,\s*a\s*:\s*(\d+)\s*,\s*r\s*:\s*["\'](.*?)["\']\s*\}', bloco_qd, re.DOTALL)
         
         for item in itens:
