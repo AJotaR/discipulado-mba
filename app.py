@@ -5,7 +5,6 @@ import random
 import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
-from html.parser import HTMLParser
 
 # Configuração da página
 st.set_page_config(
@@ -102,7 +101,7 @@ MODULOS_MESES = [
     },
 ]
 
-# PERGUNTAS INICIAIS DO QUIZ (PRE-CARREGADAS COM O TEMA)
+# PERGUNTAS INICIAIS DO QUIZ
 PERGUNTAS_PADRAO = [
     {
         "tema": "Jesus: Sua Vida e Sua Obra",
@@ -115,60 +114,62 @@ PERGUNTAS_PADRAO = [
         ],
         "correta": 0,
         "explicacao": "João 20:31 afirma expressamente: 'Estes, porém, foram escritos para que creiais que Jesus é o Cristo, o Filho de Deus, e para que, crendo, tenhais vida em seu nome.'"
-    },
-    {
-        "tema": "Jesus: Sua Vida e Sua Obra",
-        "pergunta": "De acordo com a seção 'Quem é Jesus?', Ele NÃO é apenas:",
-        "opcoes": [
-            "Um homem bom, um profeta e um mestre.",
-            "O Filho Eterno de Deus que veio salvar os pecadores.",
-            "O Cristo e o Messias prometido.",
-            "O Salvador da humanidade."
-        ],
-        "correta": 0,
-        "explicacao": "O mapa mental destaca que Jesus não é apenas um homem bom, um profeta ou um mestre, mas sim o Filho Eterno de Deus que veio salvar os pecadores."
     }
 ]
 
-# --- FUNÇÃO DE EXTRAÇÃO DE PERGUNTAS DE ARQUIVOS HTML ---
+# --- FUNÇÃO ROBUSTA DE EXTRAÇÃO DE PERGUNTAS DO HTML ---
 def extrair_perguntas_de_html(conteudo_html):
-    """Extrai a estrutura rawQuestions de um arquivo HTML de Quiz."""
+    """Extrai os blocos de perguntas diretamente usando regex sem falhar em JSON."""
+    perguntas_extraidas = []
     try:
-        match = re.search(r'const\s+rawQuestions\s*=\s*(\[.*?\]);', conteudo_html, re.DOTALL)
-        if match:
-            json_text = match.group(1)
-            # Converte chaves sem aspas para JSON válido
-            json_text = re.sub(r'(\b\w+\b)\s*:', r'"\1":', json_text)
-            # Ajusta vírgulas finais inválidas
-            json_text = re.sub(r',\s*([\]}])', r'\1', json_text)
+        # Encontra o bloco rawQuestions
+        match_block = re.search(r'rawQuestions\s*=\s*\[(.*?)\];', conteudo_html, re.DOTALL)
+        if not match_block:
+            return []
+
+        block_text = match_block.group(1)
+        
+        # Encontra cada objeto de pergunta {...}
+        question_objects = re.findall(r'\{[^{}]*question.*?\}(?=\s*,\s*\{|\s*$)', block_text, re.DOTALL)
+
+        for q_obj in question_objects:
+            # Extrai o enunciado da pergunta
+            q_match = re.search(r'question\s*:\s*["\'](.*?)["\']\s*,', q_obj, re.DOTALL)
+            # Extrai a explicação
+            exp_match = re.search(r'explanation\s*:\s*["\'](.*?)["\']\s*\}', q_obj, re.DOTALL)
+
+            question_text = q_match.group(1).strip() if q_match else ""
+            explanation_text = exp_match.group(1).strip() if exp_match else ""
+
+            # Extrai o bloco de opções
+            options_block = re.search(r'options\s*:\s*\[(.*?)\]\s*,', q_obj, re.DOTALL)
             
-            raw_data = json.loads(json_text)
-            novas_perguntas = []
+            opcoes_lista = []
+            idx_correto = 0
 
-            for item in raw_data:
-                pergunta = item.get("question", "")
-                options = item.get("options", [])
-                explanation = item.get("explanation", "")
+            if options_block:
+                opt_items = re.findall(r'\{[^{}]*text.*?\}(?=\s*,\s*\{|\s*$)', options_block.group(1), re.DOTALL)
+                for i, opt_item in enumerate(opt_items):
+                    t_match = re.search(r'text\s*:\s*["\'](.*?)["\']\s*,', opt_item, re.DOTALL)
+                    c_match = re.search(r'correct\s*:\s*(true|false)', opt_item, re.IGNORECASE)
 
-                textos_opcoes = []
-                idx_correto = 0
-
-                for i, opt in enumerate(options):
-                    textos_opcoes.append(opt.get("text", ""))
-                    if opt.get("correct") is True:
+                    if t_match:
+                        opcoes_lista.append(t_match.group(1).strip())
+                    if c_match and c_match.group(1).lower() == 'true':
                         idx_correto = i
 
-                if pergunta and len(textos_opcoes) >= 2:
-                    novas_perguntas.append({
-                        "pergunta": pergunta,
-                        "opcoes": textos_opcoes,
-                        "correta": idx_correto,
-                        "explicacao": explanation
-                    })
-            return novas_perguntas
+            if question_text and len(opcoes_lista) >= 2:
+                perguntas_extraidas.append({
+                    "pergunta": question_text,
+                    "opcoes": opcoes_lista,
+                    "correta": idx_correto,
+                    "explicacao": explanation_text
+                })
+
     except Exception as e:
-        st.error(f"Erro ao processar estrutura do arquivo HTML: {e}")
-    return []
+        st.error(f"Erro ao processar o arquivo HTML: {e}")
+
+    return perguntas_extraidas
 
 # --- FUNÇÃO AUXILIAR PARA EXIBIR VÍDEOS DO YOUTUBE ---
 def exibir_video_youtube(url):
@@ -967,37 +968,34 @@ elif pagina == "❓ Quiz Interativo":
 
     lista_perguntas = dados.get("quiz_perguntas", PERGUNTAS_PADRAO)
     
-    # Garante que as perguntas antigas tenham o campo "tema"
     for p in lista_perguntas:
         p.setdefault("tema", "Geral")
 
-    # Extrai a lista de temas únicos disponíveis
     temas_disponiveis = sorted(list(set(p["tema"] for p in lista_perguntas)))
     if not temas_disponiveis:
         temas_disponiveis = ["Geral"]
 
-    # AREA ADMIN PARA CADASTRAR/EDITAR PERGUNTAS E UPLOAD DE ARQUIVOS HTML
+    # ÁREA ADMIN - EXCLUSIVAMENTE VIA UPLOAD DE ARQUIVOS HTML
     if es_admin:
-        with st.expander("⚙️ Gerenciar Perguntas do Quiz (Área Admin)", expanded=False):
-            st.markdown("### 📄 Importar Perguntas via Arquivo HTML")
-            html_file = st.file_uploader("Envie um arquivo .html contendo as perguntas do Quiz", type=["html", "htm"])
+        with st.expander("⚙️ Importar Quiz via Arquivo HTML (Área Admin)", expanded=True):
+            st.markdown("### 📄 Selecione o arquivo HTML do Quiz")
+            html_file = st.file_uploader("Envie o arquivo .html baixado contendo as perguntas do Quiz", type=["html", "htm"])
             
             if html_file:
                 conteudo_str = html_file.getvalue().decode("utf-8", errors="ignore")
                 novas_extraidas = extrair_perguntas_de_html(conteudo_str)
                 
                 if novas_extraidas:
-                    st.success(f"🎉 Foram encontradas {len(novas_extraidas)} perguntas no arquivo!")
+                    st.success(f"🎉 Leitura concluída com sucesso! Foram encontradas **{len(novas_extraidas)} perguntas** no arquivo.")
                     
-                    tema_importacao = st.text_input("Qual o nome do Tema para estas perguntas?", value="Novo Tema de Estudo")
+                    tema_importacao = st.text_input("Qual o Nome do Tema para este Quiz?", value="Jesus: Sua Vida e Sua Obra")
                     
                     modo_import = st.radio(
-                        "Como deseja salvar estas perguntas?",
-                        ["Adicionar às perguntas já existentes", "Substituir todas as perguntas atuais"]
+                        "Como deseja salvar estas perguntas no banco de dados?",
+                        ["Adicionar aos Quizzes existentes", "Substituir todas as perguntas atuais"]
                     )
                     
-                    if st.button("📤 Confirmar Importação"):
-                        # Adiciona o tema a todas as perguntas extraidas
+                    if st.button("📤 Salvar Quiz no Aplicativo"):
                         for p in novas_extraidas:
                             p["tema"] = tema_importacao
 
@@ -1009,42 +1007,13 @@ elif pagina == "❓ Quiz Interativo":
                         salvar_dados(dados)
                         st.session_state.quiz_embaralhado = None
                         st.session_state.quiz_tema_atual = None
-                        st.success("Perguntas importadas e salvas com sucesso!")
+                        st.success(f"Quiz '{tema_importacao}' salvo com sucesso com {len(novas_extraidas)} perguntas!")
                         st.rerun()
                 else:
-                    st.warning("Não foi possível extrair perguntas do código deste arquivo HTML. Verifique a estrutura.")
+                    st.error("Não foi possível extrair perguntas deste arquivo HTML. Verifique se o arquivo possui a estrutura correta.")
 
             st.divider()
-            st.markdown("### ➕ Cadastrar Pergunta Manualmente")
-            with st.form("form_add_quiz"):
-                tema_manual = st.text_input("Tema do Quiz (Ex: Jesus: Sua Vida)", value=temas_disponiveis[0])
-                q_txt = st.text_area("Enunciado da Pergunta")
-                
-                c1, c2 = st.columns(2)
-                opt_a = c1.text_input("Opção A")
-                opt_b = c2.text_input("Opção B")
-                opt_c = c1.text_input("Opção C")
-                opt_d = c2.text_input("Opção D")
-                
-                idx_correta = st.selectbox("Qual é a resposta correta?", [0, 1, 2, 3], format_func=lambda x: ["Opção A", "Opção B", "Opção C", "Opção D"][x])
-                exp_txt = st.text_area("Explicação/Fundamentação Bíblica")
-
-                if st.form_submit_button("💾 Salvar Pergunta no Quiz") and q_txt and opt_a and opt_b and opt_c and opt_d and tema_manual:
-                    nova_p = {
-                        "tema": tema_manual,
-                        "pergunta": q_txt,
-                        "opcoes": [opt_a, opt_b, opt_c, opt_d],
-                        "correta": idx_correta,
-                        "explicacao": exp_txt
-                    }
-                    dados.setdefault("quiz_perguntas", []).append(nova_p)
-                    salvar_dados(dados)
-                    st.session_state.quiz_embaralhado = None
-                    st.success("Nova pergunta adicionada ao Quiz com sucesso!")
-                    st.rerun()
-
-            st.divider()
-            st.markdown(f"### 📋 Todas as Perguntas Cadastradas ({len(lista_perguntas)})")
+            st.markdown(f"### 📋 Quizzes Cadastrados ({len(lista_perguntas)} perguntas no total)")
             for idx_q, q_item in enumerate(list(lista_perguntas)):
                 with st.expander(f"[{q_item.get('tema', 'Geral')}] Pergunta {idx_q + 1}: {q_item['pergunta'][:50]}..."):
                     st.write(f"**Pergunta:** {q_item['pergunta']}")
@@ -1064,23 +1033,20 @@ elif pagina == "❓ Quiz Interativo":
 
     # EXECUÇÃO DO QUIZ PARA USUÁRIOS
     if not lista_perguntas:
-        st.info("Nenhuma pergunta cadastrada no Quiz ainda.")
+        st.info("Nenhum Quiz cadastrado no momento.")
     else:
         st.markdown("### Selecione o Estudo:")
         tema_selecionado = st.selectbox("Escolha o Tema do Quiz que deseja responder:", temas_disponiveis)
         
-        # Filtra as perguntas apenas para o tema escolhido
         perguntas_do_tema = [p for p in lista_perguntas if p.get("tema", "Geral") == tema_selecionado]
 
         if not perguntas_do_tema:
-            st.warning("Não há perguntas para este tema.")
+            st.warning("Não há perguntas cadastradas para este tema.")
         else:
-            # Reseta o progresso se o usuário trocar o tema no Selectbox
             if st.session_state.quiz_tema_atual != tema_selecionado:
                 st.session_state.quiz_tema_atual = tema_selecionado
                 st.session_state.quiz_embaralhado = None
 
-            # Inicialização do Quiz Embaralhado para o tema atual
             if st.session_state.quiz_embaralhado is None:
                 embaralhado = json.loads(json.dumps(perguntas_do_tema))
                 random.shuffle(embaralhado)
@@ -1130,14 +1096,12 @@ elif pagina == "❓ Quiz Interativo":
             else:
                 q_atual = st.session_state.quiz_embaralhado[curr_idx]
 
-                # Barra de progresso
                 progresso = curr_idx / total_q
                 st.progress(progresso)
                 st.caption(f"Pergunta **{curr_idx + 1} de {total_q}** | Tema: {tema_selecionado}")
 
                 st.markdown(f"### {q_atual['pergunta']}")
 
-                # Alternativas
                 letras = ["A", "B", "C", "D"]
                 for idx_opt, opt_txt in enumerate(q_atual["opcoes"]):
                     btn_label = f"**{letras[idx_opt]})** {opt_txt}"
@@ -1149,7 +1113,6 @@ elif pagina == "❓ Quiz Interativo":
                             st.session_state.quiz_score += 1
                         st.rerun()
 
-                # Feedback de resposta
                 if st.session_state.quiz_respondido:
                     escolha = st.session_state.quiz_opcao_escolhida
                     correta = q_atual["correta"]
