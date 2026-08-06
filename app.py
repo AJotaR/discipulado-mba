@@ -102,9 +102,10 @@ MODULOS_MESES = [
     },
 ]
 
-# PERGUNTAS INICIAIS DO QUIZ (PRE-CARREGADAS)
+# PERGUNTAS INICIAIS DO QUIZ (PRE-CARREGADAS COM O TEMA)
 PERGUNTAS_PADRAO = [
     {
+        "tema": "Jesus: Sua Vida e Sua Obra",
         "pergunta": "Segundo João 20:31, qual é a finalidade de crer que Jesus é o Cristo, o Filho de Deus?",
         "opcoes": [
             "Ter vida eterna.",
@@ -116,6 +117,7 @@ PERGUNTAS_PADRAO = [
         "explicacao": "João 20:31 afirma expressamente: 'Estes, porém, foram escritos para que creiais que Jesus é o Cristo, o Filho de Deus, e para que, crendo, tenhais vida em seu nome.'"
     },
     {
+        "tema": "Jesus: Sua Vida e Sua Obra",
         "pergunta": "De acordo com a seção 'Quem é Jesus?', Ele NÃO é apenas:",
         "opcoes": [
             "Um homem bom, um profeta e um mestre.",
@@ -305,6 +307,8 @@ if "quiz_opcao_escolhida" not in st.session_state:
     st.session_state.quiz_opcao_escolhida = None
 if "quiz_embaralhado" not in st.session_state:
     st.session_state.quiz_embaralhado = None
+if "quiz_tema_atual" not in st.session_state:
+    st.session_state.quiz_tema_atual = None
 
 # --- CONTAGEM DE SOLICITAÇÕES PENDENTES ---
 total_pendentes_oracao = sum(len(v) for v in dados.get("pendentes_oracao", {}).values())
@@ -962,6 +966,15 @@ elif pagina == "❓ Quiz Interativo":
     st.caption("Teste seus conhecimentos bíblicos e teológicos sobre os estudos do Discipulado!")
 
     lista_perguntas = dados.get("quiz_perguntas", PERGUNTAS_PADRAO)
+    
+    # Garante que as perguntas antigas tenham o campo "tema"
+    for p in lista_perguntas:
+        p.setdefault("tema", "Geral")
+
+    # Extrai a lista de temas únicos disponíveis
+    temas_disponiveis = sorted(list(set(p["tema"] for p in lista_perguntas)))
+    if not temas_disponiveis:
+        temas_disponiveis = ["Geral"]
 
     # AREA ADMIN PARA CADASTRAR/EDITAR PERGUNTAS E UPLOAD DE ARQUIVOS HTML
     if es_admin:
@@ -976,12 +989,18 @@ elif pagina == "❓ Quiz Interativo":
                 if novas_extraidas:
                     st.success(f"🎉 Foram encontradas {len(novas_extraidas)} perguntas no arquivo!")
                     
+                    tema_importacao = st.text_input("Qual o nome do Tema para estas perguntas?", value="Novo Tema de Estudo")
+                    
                     modo_import = st.radio(
                         "Como deseja salvar estas perguntas?",
-                        ["Substituir todas as perguntas atuais", "Adicionar às perguntas já existentes"]
+                        ["Adicionar às perguntas já existentes", "Substituir todas as perguntas atuais"]
                     )
                     
-                    if st.button("📤 Confirmar Importação do HTML"):
+                    if st.button("📤 Confirmar Importação"):
+                        # Adiciona o tema a todas as perguntas extraidas
+                        for p in novas_extraidas:
+                            p["tema"] = tema_importacao
+
                         if modo_import == "Substituir todas as perguntas atuais":
                             dados["quiz_perguntas"] = novas_extraidas
                         else:
@@ -989,6 +1008,7 @@ elif pagina == "❓ Quiz Interativo":
                         
                         salvar_dados(dados)
                         st.session_state.quiz_embaralhado = None
+                        st.session_state.quiz_tema_atual = None
                         st.success("Perguntas importadas e salvas com sucesso!")
                         st.rerun()
                 else:
@@ -997,7 +1017,9 @@ elif pagina == "❓ Quiz Interativo":
             st.divider()
             st.markdown("### ➕ Cadastrar Pergunta Manualmente")
             with st.form("form_add_quiz"):
+                tema_manual = st.text_input("Tema do Quiz (Ex: Jesus: Sua Vida)", value=temas_disponiveis[0])
                 q_txt = st.text_area("Enunciado da Pergunta")
+                
                 c1, c2 = st.columns(2)
                 opt_a = c1.text_input("Opção A")
                 opt_b = c2.text_input("Opção B")
@@ -1007,8 +1029,9 @@ elif pagina == "❓ Quiz Interativo":
                 idx_correta = st.selectbox("Qual é a resposta correta?", [0, 1, 2, 3], format_func=lambda x: ["Opção A", "Opção B", "Opção C", "Opção D"][x])
                 exp_txt = st.text_area("Explicação/Fundamentação Bíblica")
 
-                if st.form_submit_button("💾 Salvar Pergunta no Quiz") and q_txt and opt_a and opt_b and opt_c and opt_d:
+                if st.form_submit_button("💾 Salvar Pergunta no Quiz") and q_txt and opt_a and opt_b and opt_c and opt_d and tema_manual:
                     nova_p = {
+                        "tema": tema_manual,
                         "pergunta": q_txt,
                         "opcoes": [opt_a, opt_b, opt_c, opt_d],
                         "correta": idx_correta,
@@ -1021,10 +1044,10 @@ elif pagina == "❓ Quiz Interativo":
                     st.rerun()
 
             st.divider()
-            st.markdown(f"### 📋 Perguntas Cadastradas ({len(lista_perguntas)})")
+            st.markdown(f"### 📋 Todas as Perguntas Cadastradas ({len(lista_perguntas)})")
             for idx_q, q_item in enumerate(list(lista_perguntas)):
-                with st.expander(f"Pergunta {idx_q + 1}: {q_item['pergunta'][:60]}..."):
-                    st.write(f"**Pergunta completa:** {q_item['pergunta']}")
+                with st.expander(f"[{q_item.get('tema', 'Geral')}] Pergunta {idx_q + 1}: {q_item['pergunta'][:50]}..."):
+                    st.write(f"**Pergunta:** {q_item['pergunta']}")
                     for i_o, o_t in enumerate(q_item['opcoes']):
                         sinal = "✅" if i_o == q_item['correta'] else "⚪"
                         st.write(f"{sinal} **[{chr(65+i_o)}]** {o_t}")
@@ -1034,6 +1057,7 @@ elif pagina == "❓ Quiz Interativo":
                         dados["quiz_perguntas"].pop(idx_q)
                         salvar_dados(dados)
                         st.session_state.quiz_embaralhado = None
+                        st.session_state.quiz_tema_atual = None
                         st.rerun()
 
     st.divider()
@@ -1042,91 +1066,107 @@ elif pagina == "❓ Quiz Interativo":
     if not lista_perguntas:
         st.info("Nenhuma pergunta cadastrada no Quiz ainda.")
     else:
-        # Inicialização do Quiz Embaralhado
-        if st.session_state.quiz_embaralhado is None or len(st.session_state.quiz_embaralhado) != len(lista_perguntas):
-            embaralhado = json.loads(json.dumps(lista_perguntas))
-            random.shuffle(embaralhado)
-            st.session_state.quiz_embaralhado = embaralhado
-            st.session_state.quiz_idx = 0
-            st.session_state.quiz_score = 0
-            st.session_state.quiz_respondido = False
+        st.markdown("### Selecione o Estudo:")
+        tema_selecionado = st.selectbox("Escolha o Tema do Quiz que deseja responder:", temas_disponiveis)
+        
+        # Filtra as perguntas apenas para o tema escolhido
+        perguntas_do_tema = [p for p in lista_perguntas if p.get("tema", "Geral") == tema_selecionado]
 
-        total_q = len(st.session_state.quiz_embaralhado)
-        curr_idx = st.session_state.quiz_idx
-
-        # TELA DE RESULTADO FINAL
-        if curr_idx >= total_q:
-            st.balloons()
-            st.markdown("<h2 style='text-align: center; color: #1e3a8a;'>🎉 Quiz Concluído!</h2>", unsafe_allow_html=True)
-            
-            score_final = st.session_state.quiz_score
-            percentual = (score_final / total_q) * 100
-
-            st.markdown(
-                f"""
-                <div style='text-align: center; background-color: #f8fafc; border-radius: 12px; padding: 25px; border: 2px solid #e2e8f0; margin: 20px 0;'>
-                    <h1 style='font-size: 3.5rem; color: #1e3a8a; margin: 0;'>{score_final} / {total_q}</h1>
-                    <p style='font-size: 1.2rem; color: #475569;'>Aproveitamento de <b>{percentual:.0f}%</b></p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-            if percentual == 100:
-                st.success("🌟 Excelente! Você demonstrou domínio completo sobre os conceitos do estudo!")
-            elif percentual >= 70:
-                st.info("👏 Muito bom! Você compreendeu a maioria dos conceitos apresentados.")
-            else:
-                st.warning("📖 Bom esforço! Vale a pena revisar os mapas mentais para fortalecer seu conhecimento.")
-
-            if st.button("🔄 Refazer o Quiz"):
+        if not perguntas_do_tema:
+            st.warning("Não há perguntas para este tema.")
+        else:
+            # Reseta o progresso se o usuário trocar o tema no Selectbox
+            if st.session_state.quiz_tema_atual != tema_selecionado:
+                st.session_state.quiz_tema_atual = tema_selecionado
                 st.session_state.quiz_embaralhado = None
+
+            # Inicialização do Quiz Embaralhado para o tema atual
+            if st.session_state.quiz_embaralhado is None:
+                embaralhado = json.loads(json.dumps(perguntas_do_tema))
+                random.shuffle(embaralhado)
+                st.session_state.quiz_embaralhado = embaralhado
                 st.session_state.quiz_idx = 0
                 st.session_state.quiz_score = 0
                 st.session_state.quiz_respondido = False
-                st.rerun()
 
-        # PERGUNTA ATUAL
-        else:
-            q_atual = st.session_state.quiz_embaralhado[curr_idx]
+            total_q = len(st.session_state.quiz_embaralhado)
+            curr_idx = st.session_state.quiz_idx
 
-            # Barra de progresso
-            progresso = curr_idx / total_q
-            st.progress(progresso)
-            st.caption(f"Pergunta **{curr_idx + 1} de {total_q}**")
+            st.divider()
 
-            st.markdown(f"### {q_atual['pergunta']}")
-
-            # Alternativas
-            letras = ["A", "B", "C", "D"]
-            for idx_opt, opt_txt in enumerate(q_atual["opcoes"]):
-                btn_label = f"**{letras[idx_opt]})** {opt_txt}"
+            # TELA DE RESULTADO FINAL
+            if curr_idx >= total_q:
+                st.balloons()
+                st.markdown(f"<h2 style='text-align: center; color: #1e3a8a;'>🎉 Quiz Concluído: {tema_selecionado}</h2>", unsafe_allow_html=True)
                 
-                if st.button(btn_label, key=f"q_btn_{curr_idx}_{idx_opt}", disabled=st.session_state.quiz_respondido):
-                    st.session_state.quiz_respondido = True
-                    st.session_state.quiz_opcao_escolhida = idx_opt
-                    if idx_opt == q_atual["correta"]:
-                        st.session_state.quiz_score += 1
-                    st.rerun()
+                score_final = st.session_state.quiz_score
+                percentual = (score_final / total_q) * 100
 
-            # Feedback de resposta
-            if st.session_state.quiz_respondido:
-                escolha = st.session_state.quiz_opcao_escolhida
-                correta = q_atual["correta"]
+                st.markdown(
+                    f"""
+                    <div style='text-align: center; background-color: #f8fafc; border-radius: 12px; padding: 25px; border: 2px solid #e2e8f0; margin: 20px 0;'>
+                        <h1 style='font-size: 3.5rem; color: #1e3a8a; margin: 0;'>{score_final} / {total_q}</h1>
+                        <p style='font-size: 1.2rem; color: #475569;'>Aproveitamento de <b>{percentual:.0f}%</b></p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-                if escolha == correta:
-                    st.success("🎉 **Resposta Correta!**")
+                if percentual == 100:
+                    st.success("🌟 Excelente! Você demonstrou domínio completo sobre os conceitos do estudo!")
+                elif percentual >= 70:
+                    st.info("👏 Muito bom! Você compreendeu a maioria dos conceitos apresentados.")
                 else:
-                    st.error(f"❌ **Resposta Incorreta!** A alternativa correta era a **Opção {letras[correta]}**.")
+                    st.warning("📖 Bom esforço! Vale a pena revisar os mapas mentais para fortalecer seu conhecimento.")
 
-                if q_atual.get("explicacao"):
-                    st.info(f"💡 **Fundamentação:** {q_atual['explicacao']}")
-
-                if st.button("➡️ Próxima Pergunta"):
-                    st.session_state.quiz_idx += 1
+                if st.button("🔄 Tentar Novamente este Tema"):
+                    st.session_state.quiz_embaralhado = None
+                    st.session_state.quiz_idx = 0
+                    st.session_state.quiz_score = 0
                     st.session_state.quiz_respondido = False
-                    st.session_state.quiz_opcao_escolhida = None
                     st.rerun()
+
+            # PERGUNTA ATUAL
+            else:
+                q_atual = st.session_state.quiz_embaralhado[curr_idx]
+
+                # Barra de progresso
+                progresso = curr_idx / total_q
+                st.progress(progresso)
+                st.caption(f"Pergunta **{curr_idx + 1} de {total_q}** | Tema: {tema_selecionado}")
+
+                st.markdown(f"### {q_atual['pergunta']}")
+
+                # Alternativas
+                letras = ["A", "B", "C", "D"]
+                for idx_opt, opt_txt in enumerate(q_atual["opcoes"]):
+                    btn_label = f"**{letras[idx_opt]})** {opt_txt}"
+                    
+                    if st.button(btn_label, key=f"q_btn_{curr_idx}_{idx_opt}", disabled=st.session_state.quiz_respondido):
+                        st.session_state.quiz_respondido = True
+                        st.session_state.quiz_opcao_escolhida = idx_opt
+                        if idx_opt == q_atual["correta"]:
+                            st.session_state.quiz_score += 1
+                        st.rerun()
+
+                # Feedback de resposta
+                if st.session_state.quiz_respondido:
+                    escolha = st.session_state.quiz_opcao_escolhida
+                    correta = q_atual["correta"]
+
+                    if escolha == correta:
+                        st.success("🎉 **Resposta Correta!**")
+                    else:
+                        st.error(f"❌ **Resposta Incorreta!** A alternativa correta era a **Opção {letras[correta]}**.")
+
+                    if q_atual.get("explicacao"):
+                        st.info(f"💡 **Fundamentação:** {q_atual['explicacao']}")
+
+                    if st.button("➡️ Próxima Pergunta"):
+                        st.session_state.quiz_idx += 1
+                        st.session_state.quiz_respondido = False
+                        st.session_state.quiz_opcao_escolhida = None
+                        st.rerun()
 
 # --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
