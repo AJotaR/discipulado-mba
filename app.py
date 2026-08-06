@@ -223,8 +223,6 @@ if "es_admin" not in st.session_state:
     st.session_state.es_admin = False
 if "mostrar_campo_senha" not in st.session_state:
     st.session_state.mostrar_campo_senha = False
-if "palavra_caca_atual" not in st.session_state:
-    st.session_state.palavra_caca_atual = ""
 if "palavras_encontradas" not in st.session_state:
     st.session_state.palavras_encontradas = []
 
@@ -887,30 +885,30 @@ elif pagina == "🎮 Jogos Bíblicos":
 
     # 1. CAÇA-PALAVRAS
     with aba_caca:
-        st.subheader("🔍 Caça-Palavras Interativo do Discipulado")
-        
+        st.subheader("🔍 Caça-Palavras do Discipulado")
+        st.caption("Encontre as palavras na grade e digite abaixo para pontuar!")
+
         LISTA_12_PALAVRAS = [
             "DISCIPULADO", "JESUS", "OBEDIENCIA", "SERVICO", "AMOR", "JEJUM", 
             "ORACAO", "FE", "BIBLIA", "ESPIRITOSANTO", "DEUS", "ARVOREDO"
         ]
 
-        col_p1, col_p2 = st.columns([2, 1])
+        col_grid, col_lista = st.columns([2.2, 1])
 
-        with col_p2:
-            st.markdown("### 📌 Palavras para encontrar:")
+        with col_lista:
+            st.markdown("### 📌 Palavras (12):")
             for p in LISTA_12_PALAVRAS:
                 if p in st.session_state.palavras_encontradas:
-                    st.markdown(f"✅ ~~**{p}**~~ *(Encontrada)*")
+                    st.markdown(f"✅ ~~**{p}**~~")
                 else:
                     st.markdown(f"⚪ **{p}**")
 
             st.divider()
-            if st.button("🔄 Reiniciar Jogo"):
-                st.session_state.palavra_caca_atual = ""
+            if st.button("🔄 Reiniciar Caça-Palavras"):
                 st.session_state.palavras_encontradas = []
                 st.rerun()
 
-        with col_p1:
+        with col_grid:
             grid_letras_12 = [
                 ["D", "I", "S", "C", "I", "P", "U", "L", "A", "D", "O", "X"],
                 ["J", "E", "S", "U", "S", "A", "M", "O", "R", "F", "E", "O"],
@@ -921,53 +919,81 @@ elif pagina == "🎮 Jogos Bíblicos":
                 ["D", "E", "U", "S", "A", "R", "V", "O", "R", "E", "D", "O"],
             ]
 
-            st.write("Clique nas letras na sequência para formar a palavra:")
-            
-            for row_idx, line in enumerate(grid_letras_12):
-                cols = st.columns(len(line))
-                for col_idx, char in enumerate(line):
-                    if cols[col_idx].button(char, key=f"btn_caca_{row_idx}_{col_idx}"):
-                        st.session_state.palavra_caca_atual += char
-                        st.rerun()
+            # Renderização de grade em CSS super leve
+            grid_html = "<div style='display: grid; grid-template-columns: repeat(12, minmax(22px, 36px)); gap: 4px; font-weight: bold; margin-bottom: 20px;'>"
+            for row in grid_letras_12:
+                for char in row:
+                    grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px;'>{char}</div>"
+            grid_html += "</div>"
+            st.markdown(grid_html, unsafe_allow_html=True)
 
-            st.markdown(f"**Palavra Selecionada:** `{st.session_state.palavra_caca_atual}`")
-
-            c_btn1, c_btn2 = st.columns(2)
-            if c_btn1.button("✅ Confirmar Palavra Selecionada"):
-                pal_limpa = st.session_state.palavra_caca_atual
-                if pal_limpa in LISTA_12_PALAVRAS:
-                    if pal_limpa not in st.session_state.palavras_encontradas:
-                        st.session_state.palavras_encontradas.append(pal_limpa)
-                        st.success(f"🎉 Parabéns! Você encontrou a palavra **{pal_limpa}**!")
-                    else:
-                        st.warning("Você já encontrou essa palavra!")
-                else:
-                    st.error(f"A palavra **{pal_limpa}** não é uma das palavras válidas do jogo. Tente novamente!")
-                st.session_state.palavra_caca_atual = ""
-                st.rerun()
-
-            if c_btn2.button("🧹 Limpar Seleção"):
-                st.session_state.palavra_caca_atual = ""
-                st.rerun()
+            with st.form("form_caca_palavra"):
+                pal_digitada = st.selectbox("Selecione ou digite a palavra encontrada:", [""] + LISTA_12_PALAVRAS)
+                
+                if st.form_submit_button("✅ Verificar Palavra"):
+                    if pal_digitada:
+                        if pal_digitada in LISTA_12_PALAVRAS:
+                            if pal_digitada not in st.session_state.palavras_encontradas:
+                                st.session_state.palavras_encontradas.append(pal_digitada)
+                                st.success(f"🎉 Excelente! Você encontrou **{pal_digitada}**!")
+                                st.rerun()
+                            else:
+                                st.warning("Você já marcou essa palavra!")
+                        else:
+                            st.error("Palavra incorreta. Procure com atenção na grade!")
 
     # 2. PALAVRAS CRUZADAS
     with aba_cruzada:
         st.subheader("🧩 Palavras Cruzadas do Discipulado")
-        st.caption("Preencha as respostas das pistas horizontais e verticais:")
+        st.caption("Diagrama interativo do jogo:")
 
-        # Layout estilo diagrama
+        # Layout visual estilo tabuleiro de jogo impresso
         st.markdown(
             """
-            <div style="background-color: #1a1a1a; padding: 15px; border-radius: 10px; border: 1px solid #333; margin-bottom: 20px;">
-                <p style="color: #4CAF50; font-weight: bold; margin-bottom: 5px;">📍 ESTRUTURA DO DIAGRAMA:</p>
-                <small style="color: #ccc;">
-                    <b>[1-H]</b> _ _ _ _ _ _ _ _ _ (9 letras) &nbsp;|&nbsp; 
-                    <b>[2-V]</b> _ _ _ _ _ (5 letras) &nbsp;|&nbsp; 
-                    <b>[3-H]</b> _ _ _ _ _ _ (6 letras) <br>
-                    <b>[4-V]</b> _ _ _ _ _ (5 letras) &nbsp;|&nbsp; 
-                    <b>[5-H]</b> _ _ _ _ _ _ _ _ (8 letras) &nbsp;|&nbsp; 
-                    <b>[6-V]</b> _ _ _ _ _ _ _ _ _ _ _ _ _ (13 letras)
-                </small>
+            <style>
+            .cruzada-grid {
+                display: grid;
+                grid-template-columns: repeat(13, 30px);
+                gap: 2px;
+                background-color: #000;
+                padding: 5px;
+                border-radius: 8px;
+                width: fit-content;
+                margin-bottom: 20px;
+            }
+            .cell {
+                width: 30px;
+                height: 30px;
+                background-color: #fff;
+                color: #000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: bold;
+                position: relative;
+            }
+            .black { background-color: #111; }
+            .num { position: absolute; top: 1px; left: 2px; font-size: 8px; color: #d32f2f; }
+            </style>
+
+            <div class="cruzada-grid">
+                <!-- Linha 1 -->
+                <div class="cell"><span class="num">1</span>D</div><div class="cell">I</div><div class="cell">S</div><div class="cell">C</div><div class="cell">I</div><div class="cell">P</div><div class="cell">U</div><div class="cell">L</div><div class="cell">A</div><div class="cell">D</div><div class="cell">O</div><div class="black"></div><div class="black"></div>
+                <!-- Linha 2 -->
+                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell"><span class="num">2</span>J</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <!-- Linha 3 -->
+                <div class="black"></div><div class="black"></div><div class="cell"><span class="num">3</span>O</div><div class="cell">R</div><div class="cell">A</div><div class="cell">C</div><div class="cell">A</div><div class="cell">O</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <!-- Linha 4 -->
+                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell">U</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <!-- Linha 5 -->
+                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell">M</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <!-- Linha 6 -->
+                <div class="cell"><span class="num">4</span>R</div><div class="cell">E</div><div class="cell">I</div><div class="cell">N</div><div class="cell">O</div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div>
+                <!-- Linha 7 -->
+                <div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="black"></div><div class="cell"><span class="num">5</span>A</div><div class="cell">R</div><div class="cell">V</div><div class="cell">O</div><div class="cell">R</div><div class="cell">E</div><div class="cell">D</div><div class="cell">O</div>
+                <!-- Linha 8 -->
+                <div class="cell"><span class="num">6</span>E</div><div class="cell">S</div><div class="cell">P</div><div class="cell">I</div><div class="cell">R</div><div class="cell">I</div><div class="cell">T</div><div class="cell">O</div><div class="cell">S</div><div class="cell">A</div><div class="cell">N</div><div class="cell">T</div><div class="cell">O</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -980,12 +1006,12 @@ elif pagina == "🎮 Jogos Bíblicos":
                 st.markdown("#### ➡️ Horizontais")
                 rc1 = st.text_input("1. Formar seguidores e alunos fiéis de Jesus (9 letras)", key="pc_1").strip().upper()
                 rc3 = st.text_input("3. Comunicação constante e íntima com Deus (6 letras)", key="pc_3").strip().upper()
+                rc4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)", key="pc_4").strip().upper()
                 rc5 = st.text_input("5. Nome da nossa sede e ministério batista (8 letras)", key="pc_5").strip().upper()
 
             with col_v:
                 st.markdown("#### ⬇️ Verticais")
                 rc2 = st.text_input("2. Prática de abstenção por propósito espiritual (5 letras)", key="pc_2").strip().upper()
-                rc4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)", key="pc_4").strip().upper()
                 rc6 = st.text_input("6. O Consolador enviado por Jesus para guiar a Igreja (13 letras)", key="pc_6").strip().upper()
 
             if st.form_submit_button("🏆 Conferir Todas as Respostas"):
@@ -1000,18 +1026,18 @@ elif pagina == "🎮 Jogos Bíblicos":
                 }
 
                 st.divider()
-                st.markdown("### 📊 Resultado da Verificação:")
+                st.markdown("### 📊 Resultado:")
 
                 for num, (correto, resposta) in GABARITO.items():
                     if resposta == correto:
-                        st.success(f"✅ Pergunta {num}: Correto! (`{correto}`)")
+                        st.success(f"✅ Palavra {num}: Correto! (`{correto}`)")
                         acertos += 1
                     else:
-                        st.error(f"❌ Pergunta {num}: Incorreto ou incompleto.")
+                        st.error(f"❌ Palavra {num}: Incorreto.")
 
                 if acertos == 6:
                     st.balloons()
-                    st.success("🎉 PARABÉNS! Você completou todas as Palavras Cruzadas com perfeição!")
+                    st.success("🎉 PARABÉNS! Você completou o desafio das Palavras Cruzadas!")
 
 # --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
