@@ -225,6 +225,7 @@ def carregar_dados():
                 dados.setdefault("galeria_fotos", [])
                 dados.setdefault("comentarios_galeria", [])
                 dados.setdefault("quiz_perguntas", PERGUNTAS_PADRAO)
+                dados.setdefault("proximo_encontro", "16/08/2026")
                 
                 for disc in dados["discipuladores"]:
                     if "dia" not in disc or disc["dia"] not in DIAS_SEMANA_ORDEM:
@@ -244,7 +245,8 @@ def carregar_dados():
         "pendentes_jejum": {},
         "galeria_fotos": [],
         "comentarios_galeria": [],
-        "quiz_perguntas": PERGUNTAS_PADRAO
+        "quiz_perguntas": PERGUNTAS_PADRAO,
+        "proximo_encontro": "16/08/2026"
     }
 
 def salvar_dados(dados):
@@ -354,6 +356,36 @@ pagina = st.sidebar.radio("Navegação", opcoes_menu)
 
 st.sidebar.divider()
 
+# BANNER DO PRÓXIMO ENCONTRO NA BARRA LATERAL
+data_encontro = dados.get("proximo_encontro", "16/08/2026")
+st.sidebar.markdown(
+    f"""
+    <div style="
+        background: linear-gradient(135deg, #1e3a8a, #0284c7);
+        color: white;
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.15);
+        margin-bottom: 15px;
+    ">
+        <span style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px;">🗓️ Próximo Encontro Geral</span>
+        <h3 style="margin: 5px 0 0 0; font-size: 1.4rem; color: #ffffff;">{data_encontro}</h3>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+if st.session_state.es_admin:
+    with st.sidebar.popover("✏️ Alterar Data do Encontro"):
+        nova_dt = st.text_input("Data do Encontro:", value=data_encontro)
+        if st.button("Salvar Data") and nova_dt:
+            dados["proximo_encontro"] = nova_dt
+            salvar_dados(dados)
+            st.rerun()
+
+st.sidebar.divider()
+
 if not st.session_state.es_admin:
     if st.sidebar.button("🔐 Área do Administrador"):
         st.session_state.mostrar_campo_senha = not st.session_state.mostrar_campo_senha
@@ -382,6 +414,27 @@ if os.path.exists(logo_path):
         st.image(logo_path, width=180)
 
 es_admin = st.session_state.es_admin
+
+# --- BANNER DE DESTAQUE SUPERIOR EM TODAS AS TELAS ---
+st.markdown(
+    f"""
+    <div style="
+        background-color: #eff6ff;
+        border-left: 5px solid #2563eb;
+        padding: 12px 18px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    ">
+        <span style="font-size: 1.05rem; color: #1e40af; font-weight: bold;">
+            📍 Próximo Encontro Geral do Discipulado: <span style="color: #1d4ed8; text-decoration: underline;">{data_encontro}</span>
+        </span>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- TELA 1: TEMAS & MAPAS MENTAIS ---
 if pagina == "📚 Temas & Mapas":
@@ -517,17 +570,14 @@ elif pagina == "📖 Leitura Bíblica":
         st.info("Nenhuma leitura cadastrada para este mês.")
     else:
         for i, item in enumerate(dados["leitura"][mes_sel]):
-            # Separador visual de data (Linha divisória acima de cada leitura)
             if i > 0:
                 st.divider()
 
-            # Ajuste dinâmico de colunas dependendo se é admin ou usuário
             if es_admin:
                 col_chk, col_txt, col_edt, col_del = st.columns([0.4, 4.0, 0.6, 0.4])
             else:
                 col_chk, col_txt = st.columns([0.4, 5.0])
 
-            # Checkbox de conclusão da leitura
             status = col_chk.checkbox(
                 "", value=item.get("concluido", False), key=f"chk_{mes_sel}_{i}"
             )
@@ -535,7 +585,6 @@ elif pagina == "📖 Leitura Bíblica":
                 dados["leitura"][mes_sel][i]["concluido"] = status
                 salvar_dados(dados)
 
-            # Processamento e montagem dos links bíblicos para a versão ARC
             texto_original = item["texto"]
             partes = texto_original.replace("•", "|").split("|")
             
@@ -545,7 +594,6 @@ elif pagina == "📖 Leitura Bíblica":
                 if not trecho:
                     continue
                 
-                # Se for a data (ex: "01/07" ou "Dia 01"), estiliza em destaque azul/negrito
                 if ("/" in trecho and len(trecho) <= 5) or trecho.lower().startswith("dia"):
                     links_html.append(f"<span style='font-size: 1.1rem; color: #1e3a8a; font-weight: bold; background-color: #e0f2fe; padding: 2px 8px; border-radius: 6px;'>📅 {trecho}</span>")
                 else:
@@ -556,15 +604,12 @@ elif pagina == "📖 Leitura Bíblica":
             
             texto_formatado = " &nbsp;&nbsp;•&nbsp;&nbsp; ".join(links_html)
             
-            # Estilização visual (riscado se concluído)
             if item.get("concluido", False):
                 col_txt.markdown(f"<div style='margin-top: 4px; text-decoration: line-through; opacity: 0.5; filter: grayscale(100%);'>{texto_formatado}</div>", unsafe_allow_html=True)
             else:
                 col_txt.markdown(f"<div style='margin-top: 4px;'>{texto_formatado}</div>", unsafe_allow_html=True)
 
-            # Opções de Edição e Exclusão ativas no modo ADMIN
             if es_admin:
-                # Botão Popover de Edição rápida
                 with col_edt.popover("✏️"):
                     st.markdown("#### ✏️ Editar Leitura")
                     with st.form(f"form_edit_leitura_{mes_sel}_{i}"):
@@ -575,7 +620,6 @@ elif pagina == "📖 Leitura Bíblica":
                             st.success("Leitura atualizada!")
                             st.rerun()
 
-                # Botão de Exclusão
                 if col_del.button("❌", key=f"del_leit_{mes_sel}_{i}"):
                     dados["leitura"][mes_sel].pop(i)
                     salvar_dados(dados)
