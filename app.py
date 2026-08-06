@@ -108,7 +108,7 @@ def extrair_perguntas_do_html_do_quiz(html_str):
     """Lê qualquer arquivo HTML de quiz (seja com q/o/a/r ou question/options)."""
     perguntas_encontradas = []
 
-    # Limpar tags de citação como
+    # Limpar marcações de citação do tipo[cite: 1]
     html_limpo = re.sub(r'\', '', html_str)
 
     # TENTATIVA 1: Padrão Resumido (quizData com q, o, a, r)
