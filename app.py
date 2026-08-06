@@ -2,7 +2,6 @@ import json
 import os
 import re
 import streamlit as st
-import streamlit.components.v1 as components
 from PIL import Image
 from supabase import create_client, Client
 
@@ -44,6 +43,16 @@ CARGOS_DISPONIVEIS = [
     "Pastor",
     "Presbítera",
     "Presbítero",
+]
+
+DIAS_SEMANA_ORDEM = [
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+    "Domingo",
 ]
 
 MODULOS_MESES = [
@@ -106,7 +115,7 @@ def exibir_video_youtube(url):
 
     if video_id:
         embed_url = f"https://www.youtube.com/embed/{video_id}"
-        components.iframe(embed_url, height=450)
+        st.iframe(embed_url, height=450)
     else:
         st.video(url)
 
@@ -132,6 +141,12 @@ def carregar_dados():
                 dados.setdefault("pendentes_jejum", {})
                 dados.setdefault("galeria_fotos", [])
                 dados.setdefault("comentarios_galeria", [])
+                
+                # Garantir que cadastros antigos de discipuladores possuam o campo 'dia'
+                for disc in dados["discipuladores"]:
+                    if "dia" not in disc or disc["dia"] not in DIAS_SEMANA_ORDEM:
+                        disc["dia"] = "Segunda-feira"
+                        
                 return dados
         except Exception:
             pass
@@ -226,7 +241,9 @@ opcoes_menu = [
     "🗓️ Calendário de Jejum",
     "👥 Discipuladores",
     "📸 Galeria & Depoimentos",
+    "🎮 Jogos Bíblicos",
 ]
+
 if st.session_state.es_admin:
     rotulo_notificacao = (
         f"🔔 Solicitações ({total_geral_pendentes} pendentes)"
@@ -238,6 +255,7 @@ if st.session_state.es_admin:
 pagina = st.sidebar.radio("Navegação", opcoes_menu)
 
 st.sidebar.divider()
+
 if not st.session_state.es_admin:
     if st.sidebar.button("🔐 Área do Administrador"):
         st.session_state.mostrar_campo_senha = not st.session_state.mostrar_campo_senha
@@ -300,7 +318,7 @@ if pagina == "📚 Temas & Mapas":
             imagens = dados["mapas"].get(chave_mes, [])
             if imagens:
                 for idx_img, img_url in enumerate(imagens):
-                    st.image(img_url, use_container_width=True)
+                    st.image(img_url, width="stretch")
                     if es_admin:
                         if st.button("🗑️ Excluir esta imagem", key=f"del_img_{chave_mes}_{idx_img}"):
                             dados["mapas"][chave_mes].pop(idx_img)
@@ -496,16 +514,7 @@ elif pagina == "🗓️ Calendário de Jejum":
 
     dados.setdefault("pendentes_jejum", {})
 
-    dias = [
-        "Segunda-feira",
-        "Terça-feira",
-        "Quarta-feira",
-        "Quinta-feira",
-        "Sexta-feira",
-        "Sábado",
-        "Domingo",
-    ]
-    dia_sel = st.selectbox("Selecione o Dia da Semana", dias)
+    dia_sel = st.selectbox("Selecione o Dia da Semana", DIAS_SEMANA_ORDEM)
 
     if dia_sel not in dados["jejum"]:
         dados["jejum"][dia_sel] = []
@@ -576,15 +585,17 @@ elif pagina == "🗓️ Calendário de Jejum":
 # --- TELA 6: DISCIPULADORES ---
 elif pagina == "👥 Discipuladores":
     st.title("👥 Encontro dos Discipuladores")
+    st.caption("Organizados de acordo com o dia da semana. Clique no botão para entrar no grupo de WhatsApp!")
 
     if es_admin:
-        with st.expander("➕ Cadastrar Novo Discipulador"):
+        with st.expander("➕ Cadastrar Novo Discipulador", expanded=True):
             with st.form("form_discipulador"):
                 c1, c2 = st.columns(2)
                 cargo = c1.selectbox("Cargo", CARGOS_DISPONIVEIS)
                 nome = c2.text_input("Nome do Discipulador(a)")
-                dia = c1.text_input("Dia do Encontro (ex: Terça-feira)")
+                dia = c1.selectbox("Dia do Encontro", DIAS_SEMANA_ORDEM)
                 horario = c2.text_input("Horário (ex: 19:30)")
+                link_whatsapp = st.text_input("Link do Grupo do WhatsApp (ex: https://chat.whatsapp.com/...)")
                 foto_file = st.file_uploader("Foto do Discipulador", type=["png", "jpg", "jpeg"])
 
                 if st.form_submit_button("Salvar Discipulador") and nome:
@@ -600,6 +611,7 @@ elif pagina == "👥 Discipuladores":
                             "nome": nome,
                             "dia": dia,
                             "horario": horario,
+                            "whatsapp": link_whatsapp,
                             "foto": url_foto,
                             "participantes": [],
                         }
@@ -610,84 +622,131 @@ elif pagina == "👥 Discipuladores":
 
     st.divider()
 
-    for idx, disc in enumerate(dados["discipuladores"]):
-        disc.setdefault("participantes", [])
+    todos_discipuladores = dados.get("discipuladores", [])
 
-        with st.container():
-            col_img, col_info, col_p = st.columns([1.5, 2, 2])
+    if not todos_discipuladores:
+        st.info("Nenhum discipulador cadastrado até o momento.")
+    else:
+        for dia in DIAS_SEMANA_ORDEM:
+            discipuladores_do_dia = [
+                (idx, d) for idx, d in enumerate(todos_discipuladores)
+                if d.get("dia", "Segunda-feira") == dia
+            ]
 
-            # Exibição de foto padronizada em 150px
-            if disc.get("foto"):
-                col_img.image(disc["foto"], width=150)
-            else:
-                col_img.write("👤 *Sem Foto*")
+            if discipuladores_do_dia:
+                st.subheader(f"📅 {dia}")
 
-            col_info.subheader(f"{disc.get('cargo', '')} {disc['nome']}")
-            col_info.write(f"📅 **Dia:** {disc.get('dia', '')} às {disc.get('horario', '')}")
-            col_info.write(f"👥 **Participantes:** {len(disc['participantes'])}")
+                for idx, disc in discipuladores_do_dia:
+                    disc.setdefault("participantes", [])
+                    disc.setdefault("whatsapp", "")
 
-            if es_admin:
-                c_btn1, c_btn2 = col_info.columns(2)
+                    with st.container():
+                        col_img, col_info, col_p = st.columns([1.5, 2.5, 2])
 
-                if c_btn1.button("🗑️ Remover", key=f"del_disc_{idx}"):
-                    dados["discipuladores"].pop(idx)
-                    salvar_dados(dados)
-                    st.rerun()
+                        if disc.get("foto"):
+                            col_img.image(disc["foto"], width=150)
+                        else:
+                            col_img.write("👤 *Sem Foto*")
 
-                with col_info.expander("✏️ Editar Discipulador"):
-                    with st.form(f"form_edit_disc_{idx}"):
-                        index_cargo = (
-                            CARGOS_DISPONIVEIS.index(disc.get("cargo"))
-                            if disc.get("cargo") in CARGOS_DISPONIVEIS
-                            else 0
-                        )
-                        e_cargo = st.selectbox(
-                            "Cargo", CARGOS_DISPONIVEIS, index=index_cargo, key=f"ecargo_{idx}"
-                        )
-                        e_nome = st.text_input("Nome", value=disc.get("nome", ""), key=f"enome_{idx}")
-                        e_dia = st.text_input("Dia", value=disc.get("dia", ""), key=f"edia_{idx}")
-                        e_horario = st.text_input("Horário", value=disc.get("horario", ""), key=f"ehora_{idx}")
-                        e_foto = st.file_uploader(
-                            "Trocar Foto (Opcional)", type=["png", "jpg", "jpeg"], key=f"efoto_{idx}"
-                        )
+                        col_info.subheader(f"{disc.get('cargo', '')} {disc['nome']}")
+                        col_info.write(f"⏰ **Horário:** {disc.get('horario', 'A combinar')}")
+                        col_info.write(f"👥 **Participantes:** {len(disc['participantes'])}")
 
-                        if st.form_submit_button("💾 Salvar Alterações"):
-                            disc["cargo"] = e_cargo
-                            disc["nome"] = e_nome
-                            disc["dia"] = e_dia
-                            disc["horario"] = e_horario
+                        link_wa = disc.get("whatsapp", "").strip()
+                        if link_wa:
+                            col_info.markdown(
+                                f"""
+                                <a href="{link_wa}" target="_blank" style="text-decoration: none;">
+                                    <div style="
+                                        background-color: #25D366;
+                                        color: white;
+                                        padding: 8px 14px;
+                                        border-radius: 8px;
+                                        font-weight: bold;
+                                        text-align: center;
+                                        display: inline-block;
+                                        margin-top: 5px;
+                                        box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
+                                    ">
+                                        💬 Quero Fazer Parte (WhatsApp)
+                                    </div>
+                                </a>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            col_info.caption("⚠️ *Link do WhatsApp não cadastrado*")
 
-                            if e_foto:
-                                extensao = e_foto.name.split(".")[-1]
-                                caminho_foto = f"discipuladores/{e_nome}.{extensao}"
-                                url_nova = upload_imagem(e_foto, caminho_foto)
-                                if url_nova:
-                                    disc["foto"] = url_nova
+                        if es_admin:
+                            c_btn1, c_btn2 = col_info.columns(2)
 
-                            salvar_dados(dados)
-                            st.success("Discipulador atualizado com sucesso!")
-                            st.rerun()
+                            if c_btn1.button("🗑️ Remover", key=f"del_disc_{idx}"):
+                                dados["discipuladores"].pop(idx)
+                                salvar_dados(dados)
+                                st.rerun()
 
-            with col_p.expander(f"👥 Ver Participantes ({len(disc['participantes'])})"):
-                for p_idx, part in enumerate(disc["participantes"]):
-                    cp_txt, cp_del = st.columns([3, 1])
-                    cp_txt.write(f"• [{part.get('cargo', 'Membro')}] {part['nome']}")
-                    if es_admin and cp_del.button("❌", key=f"del_part_{idx}_{p_idx}"):
-                        disc["participantes"].pop(p_idx)
-                        salvar_dados(dados)
-                        st.rerun()
+                            with col_info.expander("✏️ Editar Discipulador"):
+                                with st.form(f"form_edit_disc_{idx}"):
+                                    index_cargo = (
+                                        CARGOS_DISPONIVEIS.index(disc.get("cargo"))
+                                        if disc.get("cargo") in CARGOS_DISPONIVEIS
+                                        else 0
+                                    )
+                                    index_dia = (
+                                        DIAS_SEMANA_ORDEM.index(disc.get("dia", "Segunda-feira"))
+                                        if disc.get("dia", "Segunda-feira") in DIAS_SEMANA_ORDEM
+                                        else 0
+                                    )
+                                    e_cargo = st.selectbox(
+                                        "Cargo", CARGOS_DISPONIVEIS, index=index_cargo, key=f"ecargo_{idx}"
+                                    )
+                                    e_nome = st.text_input("Nome", value=disc.get("nome", ""), key=f"enome_{idx}")
+                                    e_dia = st.selectbox("Dia", DIAS_SEMANA_ORDEM, index=index_dia, key=f"edia_{idx}")
+                                    e_horario = st.text_input("Horário", value=disc.get("horario", ""), key=f"ehora_{idx}")
+                                    e_whatsapp = st.text_input("Link WhatsApp", value=disc.get("whatsapp", ""), key=f"ewa_{idx}")
+                                    e_foto = st.file_uploader(
+                                        "Trocar Foto (Opcional)", type=["png", "jpg", "jpeg"], key=f"efoto_{idx}"
+                                    )
 
-                if es_admin:
-                    st.caption("Adicionar Participante:")
-                    p_cargo = st.selectbox("Cargo", CARGOS_DISPONIVEIS, key=f"pcargo_{idx}")
-                    p_nome = st.text_input("Nome", key=f"pnome_{idx}")
-                    if st.button("➕ Adicionar Membro", key=f"btn_p_{idx}") and p_nome:
-                        disc["participantes"].append({"cargo": p_cargo, "nome": p_nome})
-                        salvar_dados(dados)
-                        st.rerun()
-        st.divider()
+                                    if st.form_submit_button("💾 Salvar Alterações"):
+                                        disc["cargo"] = e_cargo
+                                        disc["nome"] = e_nome
+                                        disc["dia"] = e_dia
+                                        disc["horario"] = e_horario
+                                        disc["whatsapp"] = e_whatsapp
 
-# --- TELA 7: GALERIA DE FOTOS COM CURTIDAS NA FOTO E COMENTÁRIOS ---
+                                        if e_foto:
+                                            extensao = e_foto.name.split(".")[-1]
+                                            caminho_foto = f"discipuladores/{e_nome}.{extensao}"
+                                            url_nova = upload_imagem(e_foto, caminho_foto)
+                                            if url_nova:
+                                                disc["foto"] = url_nova
+
+                                        salvar_dados(dados)
+                                        st.success("Discipulador atualizado com sucesso!")
+                                        st.rerun()
+
+                        with col_p.expander(f"👥 Ver Participantes ({len(disc['participantes'])})"):
+                            for p_idx, part in enumerate(disc["participantes"]):
+                                cp_txt, cp_del = st.columns([3, 1])
+                                cp_txt.write(f"• [{part.get('cargo', 'Membro')}] {part['nome']}")
+                                if es_admin and cp_del.button("❌", key=f"del_part_{idx}_{p_idx}"):
+                                    disc["participantes"].pop(p_idx)
+                                    salvar_dados(dados)
+                                    st.rerun()
+
+                            if es_admin:
+                                st.caption("Adicionar Participante:")
+                                p_cargo = st.selectbox("Cargo", CARGOS_DISPONIVEIS, key=f"pcargo_{idx}")
+                                p_nome = st.text_input("Nome", key=f"pnome_{idx}")
+                                if st.button("➕ Adicionar Membro", key=f"btn_p_{idx}") and p_nome:
+                                    disc["participantes"].append({"cargo": p_cargo, "nome": p_nome})
+                                    salvar_dados(dados)
+                                    st.rerun()
+
+                    st.divider()
+
+# --- TELA 7: GALERIA DE FOTOS COM CURTIDAS E COMENTÁRIOS ---
 elif pagina == "📸 Galeria & Depoimentos":
     st.title("📸 Galeria de Fotos & Depoimentos")
     st.caption("Acompanhe os momentos do discipulado, curta e deixe o seu comentário em cada foto.")
@@ -728,7 +787,7 @@ elif pagina == "📸 Galeria & Depoimentos":
             f_item.setdefault("curtidas", 0)
 
             with st.container():
-                st.image(f_item["url"], use_container_width=True)
+                st.image(f_item["url"], width="stretch")
 
                 col_tit, col_like, col_del_f = st.columns([4, 1, 1])
                 with col_tit:
@@ -816,7 +875,85 @@ elif pagina == "📸 Galeria & Depoimentos":
     else:
         st.info("Nenhuma foto publicada na galeria ainda.")
 
-# --- TELA 8: NOTIFICAÇÕES E APROVAÇÕES ---
+# --- TELA 8: JOGOS BÍBLICOS ---
+elif pagina == "🎮 Jogos Bíblicos":
+    st.title("🎮 Jogos Bíblicos & Edificação")
+    st.caption("Aprenda a palavra de Deus e fortaleça seus conhecimentos do Discipulado se divertindo!")
+
+    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras", "🧩 Palavras Cruzadas"])
+
+    with aba_caca:
+        st.subheader("🔍 Caça-Palavras do Discipulado")
+        st.write("Encontre as palavras escondidas na grade abaixo:")
+
+        palavras_caca = ["DISCIPULO", "REINO", "ORACAO", "JEJUM", "FE", "AMOR", "ENSINO"]
+        st.info("📌 **Palavras para procurar:** " + ", ".join(palavras_caca))
+
+        grid_letras = [
+            ["D", "I", "S", "C", "I", "P", "U", "L", "O", "X"],
+            ["R", "A", "M", "O", "R", "B", "C", "D", "R", "E"],
+            ["E", "K", "J", "E", "J", "U", "M", "F", "A", "N"],
+            ["I", "G", "H", "I", "J", "K", "L", "M", "C", "S"],
+            ["N", "N", "O", "P", "Q", "R", "S", "T", "A", "I"],
+            ["O", "U", "V", "W", "X", "Y", "Z", "A", "O", "N"],
+            ["F", "E", "B", "C", "D", "E", "F", "G", "H", "O"],
+        ]
+
+        grid_html = "<div style='display: grid; grid-template-columns: repeat(10, 38px); gap: 6px; font-weight: bold; margin-bottom: 15px;'>"
+        for row in grid_letras:
+            for char in row:
+                grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 18px;'>{char}</div>"
+        grid_html += "</div>"
+        st.markdown(grid_html, unsafe_allow_html=True)
+
+        palavra_encontrada = st.text_input("Digite uma palavra que você encontrou:", key="input_caca").strip().upper()
+        if st.button("Verificar Palavra"):
+            if palavra_encontrada in palavras_caca:
+                st.success(f"🎉 Parabéns! Você encontrou a palavra **{palavra_encontrada}**!")
+            elif palavra_encontrada:
+                st.warning("Essa palavra não está na lista ou está incorreta. Tente novamente!")
+
+    with aba_cruzada:
+        st.subheader("🧩 Palavras Cruzadas do Discipulado")
+        st.write("Responda às perguntas bíblicas abaixo para completar o desafio:")
+
+        with st.form("form_cruzadinha"):
+            resp1 = st.text_input("1. O que significa ensinar e formar seguidores de Jesus? (9 letras)").strip().upper()
+            resp2 = st.text_input("2. Falamos com Deus através da... (6 letras)").strip().upper()
+            resp3 = st.text_input("3. Prática de abstenção de alimentos por um propósito espiritual (5 letras)").strip().upper()
+            resp4 = st.text_input("4. O Evangelho pregado por Jesus é o Evangelho do... (5 letras)").strip().upper()
+
+            if st.form_submit_button("Conferir Respostas"):
+                acertos = 0
+                if resp1 == "DISCIPULADO":
+                    st.success("1. Correto! (DISCIPULADO)")
+                    acertos += 1
+                else:
+                    st.error("1. Incorreto.")
+
+                if resp2 == "ORACAO":
+                    st.success("2. Correto! (ORACAO)")
+                    acertos += 1
+                else:
+                    st.error("2. Incorreto.")
+
+                if resp3 == "JEJUM":
+                    st.success("3. Correto! (JEJUM)")
+                    acertos += 1
+                else:
+                    st.error("3. Incorreto.")
+
+                if resp4 == "REINO":
+                    st.success("4. Correto! (REINO)")
+                    acertos += 1
+                else:
+                    st.error("4. Incorreto.")
+
+                if acertos == 4:
+                    st.balloons()
+                    st.success("🏆 Sensacional! Você acertou todas as perguntas!")
+
+# --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
     st.title("🔔 Central de Notificações e Aprovações")
     st.caption("Gerencie os cadastros enviados pelos membros antes de serem publicados.")

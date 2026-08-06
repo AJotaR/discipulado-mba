@@ -1,0 +1,17 @@
+4GAfswBBcTZU?4%
+senha site discipulado
+
+https://github.com/AJotaR/discipulado-mba/blob/main/app.py
+
+https://supabase.com/dashboard/project/vsbrpqxoszagpgzwbtiq/storage/files/policies
+
+https://share.streamlit.io/
+
+***PARA ALTERAR A SENHA DO ADMINISTRADOR***
+
+Se alterar pelo arquivo no VS Code, abra o terminal e rode apenas:
+
+PowerShell:
+git add app.py
+git commit -m "Atualiza senha do admin"
+git push origin main

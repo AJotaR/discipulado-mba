@@ -1,0 +1,138 @@
+{
+    "leitura": {},
+    "oracao": {
+        "07:00 - 07:30": [
+            {
+                "cargo": "Pastor",
+                "nome": "ALILSON JUNIOR"
+            },
+            {
+                "cargo": "Pastora",
+                "nome": "NATALI"
+            }
+        ],
+        "18:30 - 19:00": [
+            {
+                "cargo": "Cooperador",
+                "nome": "BERNARDO SILVA"
+            }
+        ]
+    },
+    "jejum": {
+        "Quarta-feira": [
+            {
+                "cargo": "Pastor",
+                "nome": "ALILSON JUNIOR"
+            }
+        ],
+        "Domingo": [
+            {
+                "cargo": "Cooperador",
+                "nome": "BERNARDO SILVA"
+            }
+        ]
+    },
+    "discipuladores": [
+        {
+            "cargo": "Bispo",
+            "nome": "Widison, Pr. André e Pra. Ana Cássia",
+            "dia": "Quarta-Feira",
+            "horario": "19h30",
+            "foto": "C:\\Users\\Administrador\\Downloads\\DISCIPULADO_MBA_SEDE\\fotos_discipuladores\\Widison,_Pr._André_e_Pra._Ana_Cássia_1785266820.png",
+            "participantes": []
+        },
+        {
+            "cargo": "Pastor",
+            "nome": "Alilson Junior",
+            "dia": "Sexta-Feira",
+            "horario": "19h",
+            "foto": "C:\\Users\\Administrador\\Downloads\\DISCIPULADO_MBA_SEDE\\fotos_discipuladores\\Alilson_Junior_1785267098.jpeg",
+            "participantes": [
+                {
+                    "cargo": "Cooperador",
+                    "nome": "Bernardo"
+                },
+                {
+                    "cargo": "Cooperador",
+                    "nome": "Adriano Silva"
+                },
+                {
+                    "cargo": "Diácono",
+                    "nome": "Alexandre"
+                },
+                {
+                    "cargo": "Evangelista",
+                    "nome": "Bruno Argolo"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Davi"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Isac"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Edvaldo"
+                },
+                {
+                    "cargo": "Pastor",
+                    "nome": "Franklin"
+                },
+                {
+                    "cargo": "Presbítero",
+                    "nome": "Lourival"
+                },
+                {
+                    "cargo": "Pastor",
+                    "nome": "Luis Alberto"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Messias"
+                },
+                {
+                    "cargo": "Obreiro",
+                    "nome": "Valnei"
+                },
+                {
+                    "cargo": "Presbítero",
+                    "nome": "Josiel"
+                },
+                {
+                    "cargo": "Pastor",
+                    "nome": "Delson"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Samuel"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "Saymo"
+                },
+                {
+                    "cargo": "Obreiro",
+                    "nome": "Vanderson"
+                },
+                {
+                    "cargo": "Obreiro",
+                    "nome": "William"
+                },
+                {
+                    "cargo": "Membro",
+                    "nome": "José"
+                }
+            ]
+        },
+        {
+            "cargo": "Pastora",
+            "nome": "Natali Santos",
+            "dia": "Sexta-Feira",
+            "horario": "19h",
+            "foto": "C:\\Users\\Administrador\\Downloads\\DISCIPULADO_MBA_SEDE\\fotos_discipuladores\\Natali_Santos_1785267801.png",
+            "participantes": []
+        }
+    ]
+}
