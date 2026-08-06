@@ -101,75 +101,61 @@ MODULOS_MESES = [
     },
 ]
 
-# PERGUNTAS INICIAIS DO QUIZ
-PERGUNTAS_PADRAO = [
-    {
-        "tema": "Jesus: Sua Vida e Sua Obra",
-        "pergunta": "Segundo João 20:31, qual é a finalidade de crer que Jesus é o Cristo, o Filho de Deus?",
-        "opcoes": [
-            "Ter vida eterna.",
-            "Obter apenas prosperidade material nesta terra.",
-            "Tornar-se um líder religioso respeitado.",
-            "Alcançar a perfeição humana sem falhas."
-        ],
-        "correta": 0,
-        "explicacao": "João 20:31 afirma expressamente: 'Estes, porém, foram escritos para que creiais que Jesus é o Cristo, o Filho de Deus, e para que, crendo, tenhais vida em seu nome.'"
-    }
-]
+PERGUNTAS_PADRAO = []
 
-# --- FUNÇÃO ROBUSTA DE EXTRAÇÃO DE PERGUNTAS DO HTML ---
-def extrair_perguntas_de_html(conteudo_html):
-    """Extrai os blocos de perguntas diretamente usando regex sem falhar em JSON."""
-    perguntas_extraidas = []
-    try:
-        # Encontra o bloco rawQuestions
-        match_block = re.search(r'rawQuestions\s*=\s*\[(.*?)\];', conteudo_html, re.DOTALL)
-        if not match_block:
-            return []
+# --- EXTRAÇÃO COMPATÍVEL COM O SEU ARQUIVO HTML ---
+def extrair_perguntas_do_html_do_quiz(html_str):
+    """Extrai os dados da estrutura const rawQuestions = [...] do seu arquivo HTML"""
+    perguntas_encontradas = []
+    
+    # Isola o bloco rawQuestions
+    match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];\s*let\s+currentQuestions', html_str, re.DOTALL)
+    if not match_raw:
+        match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];', html_str, re.DOTALL)
 
-        block_text = match_block.group(1)
+    if not match_raw:
+        return []
+
+    bloco_raw = match_raw.group(1)
+
+    # Separa cada bloco de pergunta pelo fechamento "explanation: ... }"
+    blocos_perguntas = re.split(r'explanation\s*:\s*["\']', bloco_raw)
+
+    for i in range(len(blocos_perguntas) - 1):
+        trecho_q = blocos_perguntas[i]
+        trecho_exp = blocos_perguntas[i+1]
+
+        # Extrai enunciado
+        match_p = re.search(r'question\s*:\s*["\'](.*?)["\']\s*,', trecho_q, re.DOTALL)
+        if not match_p:
+            continue
+        enunciado = match_p.group(1).strip()
+
+        # Extrai explicação
+        match_exp = re.search(r'^(.*?)["\']\s*\}', trecho_exp, re.DOTALL)
+        explicacao = match_exp.group(1).strip() if match_exp else ""
+
+        # Extrai opcoes
+        opcoes = []
+        correta_idx = 0
+        matches_opt = re.findall(r'\{\s*text\s*:\s*["\'](.*?)["\']\s*,\s*correct\s*:\s*(true|false)\s*\}', trecho_q, re.DOTALL)
         
-        # Encontra cada objeto de pergunta {...}
-        question_objects = re.findall(r'\{[^{}]*question.*?\}(?=\s*,\s*\{|\s*$)', block_text, re.DOTALL)
+        for idx, opt_tuple in enumerate(matches_opt):
+            opt_texto = opt_tuple[0].strip()
+            is_correct = opt_tuple[1].strip() == "true"
+            opcoes.append(opt_texto)
+            if is_correct:
+                correta_idx = idx
 
-        for q_obj in question_objects:
-            # Extrai o enunciado da pergunta
-            q_match = re.search(r'question\s*:\s*["\'](.*?)["\']\s*,', q_obj, re.DOTALL)
-            # Extrai a explicação
-            exp_match = re.search(r'explanation\s*:\s*["\'](.*?)["\']\s*\}', q_obj, re.DOTALL)
+        if enunciado and len(opcoes) >= 2:
+            perguntas_encontradas.append({
+                "pergunta": enunciado,
+                "opcoes": opcoes,
+                "correta": correta_idx,
+                "explicacao": explicacao
+            })
 
-            question_text = q_match.group(1).strip() if q_match else ""
-            explanation_text = exp_match.group(1).strip() if exp_match else ""
-
-            # Extrai o bloco de opções
-            options_block = re.search(r'options\s*:\s*\[(.*?)\]\s*,', q_obj, re.DOTALL)
-            
-            opcoes_lista = []
-            idx_correto = 0
-
-            if options_block:
-                opt_items = re.findall(r'\{[^{}]*text.*?\}(?=\s*,\s*\{|\s*$)', options_block.group(1), re.DOTALL)
-                for i, opt_item in enumerate(opt_items):
-                    t_match = re.search(r'text\s*:\s*["\'](.*?)["\']\s*,', opt_item, re.DOTALL)
-                    c_match = re.search(r'correct\s*:\s*(true|false)', opt_item, re.IGNORECASE)
-
-                    if t_match:
-                        opcoes_lista.append(t_match.group(1).strip())
-                    if c_match and c_match.group(1).lower() == 'true':
-                        idx_correto = i
-
-            if question_text and len(opcoes_lista) >= 2:
-                perguntas_extraidas.append({
-                    "pergunta": question_text,
-                    "opcoes": opcoes_lista,
-                    "correta": idx_correto,
-                    "explicacao": explanation_text
-                })
-
-    except Exception as e:
-        st.error(f"Erro ao processar o arquivo HTML: {e}")
-
-    return perguntas_extraidas
+    return perguntas_encontradas
 
 # --- FUNÇÃO AUXILIAR PARA EXIBIR VÍDEOS DO YOUTUBE ---
 def exibir_video_youtube(url):
@@ -975,7 +961,7 @@ elif pagina == "❓ Quiz Interativo":
     if not temas_disponiveis:
         temas_disponiveis = ["Geral"]
 
-    # ÁREA ADMIN - EXCLUSIVAMENTE VIA UPLOAD DE ARQUIVOS HTML
+    # ÁREA ADMIN - UPLOAD DE ARQUIVO HTML
     if es_admin:
         with st.expander("⚙️ Importar Quiz via Arquivo HTML (Área Admin)", expanded=True):
             st.markdown("### 📄 Selecione o arquivo HTML do Quiz")
@@ -983,7 +969,7 @@ elif pagina == "❓ Quiz Interativo":
             
             if html_file:
                 conteudo_str = html_file.getvalue().decode("utf-8", errors="ignore")
-                novas_extraidas = extrair_perguntas_de_html(conteudo_str)
+                novas_extraidas = extrair_perguntas_do_html_do_quiz(conteudo_str)
                 
                 if novas_extraidas:
                     st.success(f"🎉 Leitura concluída com sucesso! Foram encontradas **{len(novas_extraidas)} perguntas** no arquivo.")
