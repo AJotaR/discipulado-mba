@@ -1,9 +1,11 @@
 import json
 import os
 import re
+import random
 import streamlit as st
 from PIL import Image
 from supabase import create_client, Client
+from html.parser import HTMLParser
 
 # Configuração da página
 st.set_page_config(
@@ -100,6 +102,72 @@ MODULOS_MESES = [
     },
 ]
 
+# PERGUNTAS INICIAIS DO QUIZ (PRE-CARREGADAS)
+PERGUNTAS_PADRAO = [
+    {
+        "pergunta": "Segundo João 20:31, qual é a finalidade de crer que Jesus é o Cristo, o Filho de Deus?",
+        "opcoes": [
+            "Ter vida eterna.",
+            "Obter apenas prosperidade material nesta terra.",
+            "Tornar-se um líder religioso respeitado.",
+            "Alcançar a perfeição humana sem falhas."
+        ],
+        "correta": 0,
+        "explicacao": "João 20:31 afirma expressamente: 'Estes, porém, foram escritos para que creiais que Jesus é o Cristo, o Filho de Deus, e para que, crendo, tenhais vida em seu nome.'"
+    },
+    {
+        "pergunta": "De acordo com a seção 'Quem é Jesus?', Ele NÃO é apenas:",
+        "opcoes": [
+            "Um homem bom, um profeta e um mestre.",
+            "O Filho Eterno de Deus que veio salvar os pecadores.",
+            "O Cristo e o Messias prometido.",
+            "O Salvador da humanidade."
+        ],
+        "correta": 0,
+        "explicacao": "O mapa mental destaca que Jesus não é apenas um homem bom, um profeta ou um mestre, mas sim o Filho Eterno de Deus que veio salvar os pecadores."
+    }
+]
+
+# --- FUNÇÃO DE EXTRAÇÃO DE PERGUNTAS DE ARQUIVOS HTML ---
+def extrair_perguntas_de_html(conteudo_html):
+    """Extrai a estrutura rawQuestions de um arquivo HTML de Quiz."""
+    try:
+        match = re.search(r'const\s+rawQuestions\s*=\s*(\[.*?\]);', conteudo_html, re.DOTALL)
+        if match:
+            json_text = match.group(1)
+            # Converte chaves sem aspas para JSON válido
+            json_text = re.sub(r'(\b\w+\b)\s*:', r'"\1":', json_text)
+            # Ajusta vírgulas finais inválidas
+            json_text = re.sub(r',\s*([\]}])', r'\1', json_text)
+            
+            raw_data = json.loads(json_text)
+            novas_perguntas = []
+
+            for item in raw_data:
+                pergunta = item.get("question", "")
+                options = item.get("options", [])
+                explanation = item.get("explanation", "")
+
+                textos_opcoes = []
+                idx_correto = 0
+
+                for i, opt in enumerate(options):
+                    textos_opcoes.append(opt.get("text", ""))
+                    if opt.get("correct") is True:
+                        idx_correto = i
+
+                if pergunta and len(textos_opcoes) >= 2:
+                    novas_perguntas.append({
+                        "pergunta": pergunta,
+                        "opcoes": textos_opcoes,
+                        "correta": idx_correto,
+                        "explicacao": explanation
+                    })
+            return novas_perguntas
+    except Exception as e:
+        st.error(f"Erro ao processar estrutura do arquivo HTML: {e}")
+    return []
+
 # --- FUNÇÃO AUXILIAR PARA EXIBIR VÍDEOS DO YOUTUBE ---
 def exibir_video_youtube(url):
     """Converte qualquer link do YouTube (live, shorts, watch, youtu.be) para embed seguro"""
@@ -141,6 +209,7 @@ def carregar_dados():
                 dados.setdefault("pendentes_jejum", {})
                 dados.setdefault("galeria_fotos", [])
                 dados.setdefault("comentarios_galeria", [])
+                dados.setdefault("quiz_perguntas", PERGUNTAS_PADRAO)
                 
                 for disc in dados["discipuladores"]:
                     if "dia" not in disc or disc["dia"] not in DIAS_SEMANA_ORDEM:
@@ -160,6 +229,7 @@ def carregar_dados():
         "pendentes_jejum": {},
         "galeria_fotos": [],
         "comentarios_galeria": [],
+        "quiz_perguntas": PERGUNTAS_PADRAO
     }
 
 def salvar_dados(dados):
@@ -223,8 +293,18 @@ if "es_admin" not in st.session_state:
     st.session_state.es_admin = False
 if "mostrar_campo_senha" not in st.session_state:
     st.session_state.mostrar_campo_senha = False
-if "palavras_encontradas" not in st.session_state:
-    st.session_state.palavras_encontradas = []
+
+# ESTADOS DO QUIZ
+if "quiz_idx" not in st.session_state:
+    st.session_state.quiz_idx = 0
+if "quiz_score" not in st.session_state:
+    st.session_state.quiz_score = 0
+if "quiz_respondido" not in st.session_state:
+    st.session_state.quiz_respondido = False
+if "quiz_opcao_escolhida" not in st.session_state:
+    st.session_state.quiz_opcao_escolhida = None
+if "quiz_embaralhado" not in st.session_state:
+    st.session_state.quiz_embaralhado = None
 
 # --- CONTAGEM DE SOLICITAÇÕES PENDENTES ---
 total_pendentes_oracao = sum(len(v) for v in dados.get("pendentes_oracao", {}).values())
@@ -242,7 +322,7 @@ opcoes_menu = [
     "🗓️ Calendário de Jejum",
     "👥 Discipuladores",
     "📸 Galeria & Depoimentos",
-    "🎮 Jogos Bíblicos",
+    "❓ Quiz Interativo",
 ]
 
 if st.session_state.es_admin:
@@ -876,168 +956,177 @@ elif pagina == "📸 Galeria & Depoimentos":
     else:
         st.info("Nenhuma foto publicada na galeria ainda.")
 
-# --- TELA 8: JOGOS BÍBLICOS ---
-elif pagina == "🎮 Jogos Bíblicos":
-    st.title("🎮 Jogos Bíblicos & Edificação")
-    st.caption("Aprenda a palavra de Deus e fortaleça seus conhecimentos do Discipulado se divertindo!")
+# --- TELA 8: QUIZ INTERATIVO ---
+elif pagina == "❓ Quiz Interativo":
+    st.title("❓ Quiz Interativo - Discipulado")
+    st.caption("Teste seus conhecimentos bíblicos e teológicos sobre os estudos do Discipulado!")
 
-    aba_caca, aba_cruzada = st.tabs(["🔍 Caça-Palavras Oculto (10 Palavras)", "🧩 Palavras Cruzadas"])
+    lista_perguntas = dados.get("quiz_perguntas", PERGUNTAS_PADRAO)
 
-    # 1. CAÇA-PALAVRAS OCULTO
-    with aba_caca:
-        st.subheader("🔍 Caça-Palavras Oculto do Discipulado")
-        st.write("Procure as 10 palavras escondidas na grade abaixo. As palavras estão OCULTAS!")
-
-        # As 10 palavras secretas
-        GABARITO_10_OCULTAS = [
-            "DISCIPULADO", "JESUS", "OBEDIENCIA", "SERVICO", "AMOR",
-            "JEJUM", "ORACAO", "BIBLIA", "ARVOREDO", "REINO"
-        ]
-
-        total_palavras = len(GABARITO_10_OCULTAS)
-        encontradas = len(st.session_state.palavras_encontradas)
-        faltando = total_palavras - encontradas
-
-        # Placar dinâmico
-        if faltando == 0:
-            st.balloons()
-            st.success("🏆 PARABÉNS! VOCÊ ENCONTROU TODAS AS 10 PALAVRAS OCULTAS!")
-        else:
-            st.info(f"🎯 **Progresso:** Você encontrou **{encontradas}** de {total_palavras} palavras. **(Faltam {faltando})**")
-
-        grid_letras_ocultas = [
-            ["D", "I", "S", "C", "I", "P", "U", "L", "A", "D", "O", "X"],
-            ["J", "E", "S", "U", "S", "A", "M", "O", "R", "F", "E", "O"],
-            ["O", "B", "E", "D", "I", "E", "N", "C", "I", "A", "P", "R"],
-            ["S", "E", "R", "V", "I", "C", "O", "J", "E", "J", "U", "M"],
-            ["O", "R", "A", "C", "A", "O", "B", "I", "B", "L", "I", "A"],
-            ["A", "R", "V", "O", "R", "E", "D", "O", "R", "E", "I", "N"],
-            ["D", "E", "U", "S", "A", "R", "V", "O", "R", "E", "D", "O"],
-        ]
-
-        # Exibição da grade de letras em CSS
-        grid_html = "<div style='display: grid; grid-template-columns: repeat(12, minmax(22px, 36px)); gap: 4px; font-weight: bold; margin-bottom: 20px;'>"
-        for row in grid_letras_ocultas:
-            for char in row:
-                grid_html += f"<div style='background-color: #1E1E1E; color: #4CAF50; border: 1px solid #4CAF50; border-radius: 6px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 16px;'>{char}</div>"
-        grid_html += "</div>"
-        st.markdown(grid_html, unsafe_allow_html=True)
-
-        with st.form("form_caca_oculto"):
-            col_inp, col_btn = st.columns([3, 1])
-            pal_tentativa = col_inp.text_input("Digite uma palavra que você achou na grade:").strip().upper()
+    # AREA ADMIN PARA CADASTRAR/EDITAR PERGUNTAS E UPLOAD DE ARQUIVOS HTML
+    if es_admin:
+        with st.expander("⚙️ Gerenciar Perguntas do Quiz (Área Admin)", expanded=False):
+            st.markdown("### 📄 Importar Perguntas via Arquivo HTML")
+            html_file = st.file_uploader("Envie um arquivo .html contendo as perguntas do Quiz", type=["html", "htm"])
             
-            if col_btn.form_submit_button("🔍 Enviar Palavra"):
-                # Remover acentos comuns de digitação
-                pal_limpa = pal_tentativa.replace("Ç", "C").replace("Ã", "A").replace("Õ", "O").replace("É", "E")
+            if html_file:
+                conteudo_str = html_file.getvalue().decode("utf-8", errors="ignore")
+                novas_extraidas = extrair_perguntas_de_html(conteudo_str)
                 
-                if pal_limpa in GABARITO_10_OCULTAS:
-                    if pal_limpa not in st.session_state.palavras_encontradas:
-                        st.session_state.palavras_encontradas.append(pal_limpa)
-                        st.success(f"🎉 Correto! A palavra **{pal_limpa}** faz parte do jogo!")
+                if novas_extraidas:
+                    st.success(f"🎉 Foram encontradas {len(novas_extraidas)} perguntas no arquivo!")
+                    
+                    modo_import = st.radio(
+                        "Como deseja salvar estas perguntas?",
+                        ["Substituir todas as perguntas atuais", "Adicionar às perguntas já existentes"]
+                    )
+                    
+                    if st.button("📤 Confirmar Importação do HTML"):
+                        if modo_import == "Substituir todas as perguntas atuais":
+                            dados["quiz_perguntas"] = novas_extraidas
+                        else:
+                            dados["quiz_perguntas"].extend(novas_extraidas)
+                        
+                        salvar_dados(dados)
+                        st.session_state.quiz_embaralhado = None
+                        st.success("Perguntas importadas e salvas com sucesso!")
                         st.rerun()
-                    else:
-                        st.warning("Você já encontrou essa palavra antes!")
-                elif pal_limpa:
-                    st.error("Essa palavra não está oculta no caça-palavras ou está incorreta. Tente novamente!")
+                else:
+                    st.warning("Não foi possível extrair perguntas do código deste arquivo HTML. Verifique a estrutura.")
 
-        if st.session_state.palavras_encontradas:
-            st.markdown("##### 📝 Palavras que você já descobriu:")
-            st.write(", ".join([f"✅ {p}" for p in st.session_state.palavras_encontradas]))
+            st.divider()
+            st.markdown("### ➕ Cadastrar Pergunta Manualmente")
+            with st.form("form_add_quiz"):
+                q_txt = st.text_area("Enunciado da Pergunta")
+                c1, c2 = st.columns(2)
+                opt_a = c1.text_input("Opção A")
+                opt_b = c2.text_input("Opção B")
+                opt_c = c1.text_input("Opção C")
+                opt_d = c2.text_input("Opção D")
+                
+                idx_correta = st.selectbox("Qual é a resposta correta?", [0, 1, 2, 3], format_func=lambda x: ["Opção A", "Opção B", "Opção C", "Opção D"][x])
+                exp_txt = st.text_area("Explicação/Fundamentação Bíblica")
 
-        if st.button("🔄 Reiniciar Jogo de Caça-Palavras"):
-            st.session_state.palavras_encontradas = []
-            st.rerun()
+                if st.form_submit_button("💾 Salvar Pergunta no Quiz") and q_txt and opt_a and opt_b and opt_c and opt_d:
+                    nova_p = {
+                        "pergunta": q_txt,
+                        "opcoes": [opt_a, opt_b, opt_c, opt_d],
+                        "correta": idx_correta,
+                        "explicacao": exp_txt
+                    }
+                    dados.setdefault("quiz_perguntas", []).append(nova_p)
+                    salvar_dados(dados)
+                    st.session_state.quiz_embaralhado = None
+                    st.success("Nova pergunta adicionada ao Quiz com sucesso!")
+                    st.rerun()
 
-    # 2. PALAVRAS CRUZADAS COM CRUZAMENTO REAL
-    with aba_cruzada:
-        st.subheader("🧩 Palavras Cruzadas do Discipulado")
-        st.caption("Complete as palavras no diagrama onde as respostas se cruzam exatamente nas letras correspondentes!")
+            st.divider()
+            st.markdown(f"### 📋 Perguntas Cadastradas ({len(lista_perguntas)})")
+            for idx_q, q_item in enumerate(list(lista_perguntas)):
+                with st.expander(f"Pergunta {idx_q + 1}: {q_item['pergunta'][:60]}..."):
+                    st.write(f"**Pergunta completa:** {q_item['pergunta']}")
+                    for i_o, o_t in enumerate(q_item['opcoes']):
+                        sinal = "✅" if i_o == q_item['correta'] else "⚪"
+                        st.write(f"{sinal} **[{chr(65+i_o)}]** {o_t}")
+                    st.caption(f"**Explicação:** {q_item.get('explicacao', 'Sem explicação.')}")
+                    
+                    if st.button("🗑️ Excluir esta Pergunta", key=f"del_quiz_p_{idx_q}"):
+                        dados["quiz_perguntas"].pop(idx_q)
+                        salvar_dados(dados)
+                        st.session_state.quiz_embaralhado = None
+                        st.rerun()
 
-        # Diagrama CSS de cruzamento real
-        st.markdown(
-            """
-            <style>
-            .cruzada-real-grid {
-                display: grid;
-                grid-template-columns: repeat(12, 32px);
-                gap: 2px;
-                background-color: #000;
-                padding: 6px;
-                border-radius: 8px;
-                width: fit-content;
-                margin-bottom: 20px;
-            }
-            .cell-box {
-                width: 32px;
-                height: 32px;
-                background-color: #fff;
-                color: #000;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 13px;
-                font-weight: bold;
-                position: relative;
-            }
-            .cell-black { background-color: #1a1a1a; }
-            .cell-num { position: absolute; top: 1px; left: 2px; font-size: 9px; color: #d32f2f; font-weight: bold; }
-            </style>
+    st.divider()
 
-            <div class="cruzada-real-grid">
-                <!-- Linha 1: 1-H: DISCIPULADO -->
-                <div class="cell-box"><span class="cell-num">1</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div>
-                <!-- Linha 2 -->
-                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">2</span>_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
-                <!-- Linha 3 -->
-                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
-                <!-- Linha 4: 3-H: ORACAO (Compartilha o O com o U de JEJUM) -->
-                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">3</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div>
-                <!-- Linha 5 -->
-                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box">_</div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div>
-                <!-- Linha 6: 4-H: ARVOREDO -->
-                <div class="cell-black"></div><div class="cell-black"></div><div class="cell-black"></div><div class="cell-box"><span class="cell-num">4</span>_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-box">_</div><div class="cell-black"></div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # EXECUÇÃO DO QUIZ PARA USUÁRIOS
+    if not lista_perguntas:
+        st.info("Nenhuma pergunta cadastrada no Quiz ainda.")
+    else:
+        # Inicialização do Quiz Embaralhado
+        if st.session_state.quiz_embaralhado is None or len(st.session_state.quiz_embaralhado) != len(lista_perguntas):
+            embaralhado = json.loads(json.dumps(lista_perguntas))
+            random.shuffle(embaralhado)
+            st.session_state.quiz_embaralhado = embaralhado
+            st.session_state.quiz_idx = 0
+            st.session_state.quiz_score = 0
+            st.session_state.quiz_respondido = False
 
-        st.markdown("### ❓ Responda às Perguntas do Diagrama:")
+        total_q = len(st.session_state.quiz_embaralhado)
+        curr_idx = st.session_state.quiz_idx
 
-        with st.form("form_cruzada_real"):
-            col_perg1, col_perg2 = st.columns(2)
+        # TELA DE RESULTADO FINAL
+        if curr_idx >= total_q:
+            st.balloons()
+            st.markdown("<h2 style='text-align: center; color: #1e3a8a;'>🎉 Quiz Concluído!</h2>", unsafe_allow_html=True)
+            
+            score_final = st.session_state.quiz_score
+            percentual = (score_final / total_q) * 100
 
-            with col_perg1:
-                st.markdown("#### ➡️ Horizontais")
-                p1 = st.text_input("1-H. Formar seguidores e alunos fiéis de Jesus (11 letras)", key="real_pc1").strip().upper()
-                p3 = st.text_input("3-H. Comunicação constante e íntima com Deus (6 letras)", key="real_pc3").strip().upper()
-                p4 = st.text_input("4-H. Nome da nossa sede e ministério batista (8 letras)", key="real_pc4").strip().upper()
+            st.markdown(
+                f"""
+                <div style='text-align: center; background-color: #f8fafc; border-radius: 12px; padding: 25px; border: 2px solid #e2e8f0; margin: 20px 0;'>
+                    <h1 style='font-size: 3.5rem; color: #1e3a8a; margin: 0;'>{score_final} / {total_q}</h1>
+                    <p style='font-size: 1.2rem; color: #475569;'>Aproveitamento de <b>{percentual:.0f}%</b></p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
-            with col_perg2:
-                st.markdown("#### ⬇️ Verticais")
-                p2 = st.text_input("2-V. Prática de abstenção de alimentos por propósito espiritual (5 letras)", key="real_pc2").strip().upper()
+            if percentual == 100:
+                st.success("🌟 Excelente! Você demonstrou domínio completo sobre os conceitos do estudo!")
+            elif percentual >= 70:
+                st.info("👏 Muito bom! Você compreendeu a maioria dos conceitos apresentados.")
+            else:
+                st.warning("📖 Bom esforço! Vale a pena revisar os mapas mentais para fortalecer seu conhecimento.")
 
-            if st.form_submit_button("🏆 Conferir Cruzadinha"):
-                GAB_REAL = {
-                    "1-H": ("DISCIPULADO", p1),
-                    "2-V": ("JEJUM", p2),
-                    "3-H": ("ORACAO", p3),
-                    "4-H": ("ARVOREDO", p4)
-                }
+            if st.button("🔄 Refazer o Quiz"):
+                st.session_state.quiz_embaralhado = None
+                st.session_state.quiz_idx = 0
+                st.session_state.quiz_score = 0
+                st.session_state.quiz_respondido = False
+                st.rerun()
 
-                st.divider()
-                acertos_c = 0
-                for chave, (correto, resp) in GAB_REAL.items():
-                    resp_limpa = resp.replace("Ç", "C").replace("Ã", "A")
-                    if resp_limpa == correto:
-                        st.success(f"✅ Item {chave}: Correto! (`{correto}`)")
-                        acertos_c += 1
-                    else:
-                        st.error(f"❌ Item {chave}: Incorreto ou em branco.")
+        # PERGUNTA ATUAL
+        else:
+            q_atual = st.session_state.quiz_embaralhado[curr_idx]
 
-                if acertos_c == 4:
-                    st.balloons()
-                    st.success("🎉 PARABÉNS! Você completou o diagrama de Palavras Cruzadas perfeitamente!")
+            # Barra de progresso
+            progresso = curr_idx / total_q
+            st.progress(progresso)
+            st.caption(f"Pergunta **{curr_idx + 1} de {total_q}**")
+
+            st.markdown(f"### {q_atual['pergunta']}")
+
+            # Alternativas
+            letras = ["A", "B", "C", "D"]
+            for idx_opt, opt_txt in enumerate(q_atual["opcoes"]):
+                btn_label = f"**{letras[idx_opt]})** {opt_txt}"
+                
+                if st.button(btn_label, key=f"q_btn_{curr_idx}_{idx_opt}", disabled=st.session_state.quiz_respondido):
+                    st.session_state.quiz_respondido = True
+                    st.session_state.quiz_opcao_escolhida = idx_opt
+                    if idx_opt == q_atual["correta"]:
+                        st.session_state.quiz_score += 1
+                    st.rerun()
+
+            # Feedback de resposta
+            if st.session_state.quiz_respondido:
+                escolha = st.session_state.quiz_opcao_escolhida
+                correta = q_atual["correta"]
+
+                if escolha == correta:
+                    st.success("🎉 **Resposta Correta!**")
+                else:
+                    st.error(f"❌ **Resposta Incorreta!** A alternativa correta era a **Opção {letras[correta]}**.")
+
+                if q_atual.get("explicacao"):
+                    st.info(f"💡 **Fundamentação:** {q_atual['explicacao']}")
+
+                if st.button("➡️ Próxima Pergunta"):
+                    st.session_state.quiz_idx += 1
+                    st.session_state.quiz_respondido = False
+                    st.session_state.quiz_opcao_escolhida = None
+                    st.rerun()
 
 # --- TELA 9: NOTIFICAÇÕES E APROVAÇÕES ---
 elif "Solicitações" in pagina and es_admin:
