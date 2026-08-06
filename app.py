@@ -103,57 +103,83 @@ MODULOS_MESES = [
 
 PERGUNTAS_PADRAO = []
 
-# --- EXTRAÇÃO COMPATÍVEL COM O SEU ARQUIVO HTML ---
+# --- EXTRAÇÃO UNIVERSAL DE ARQUIVOS HTML DO QUIZ ---
 def extrair_perguntas_do_html_do_quiz(html_str):
-    """Extrai os dados da estrutura const rawQuestions = [...] do seu arquivo HTML"""
+    """Lê qualquer arquivo HTML de quiz (seja com q/o/a/r ou question/options)."""
     perguntas_encontradas = []
-    
-    # Isola o bloco rawQuestions
-    match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];\s*let\s+currentQuestions', html_str, re.DOTALL)
-    if not match_raw:
-        match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];', html_str, re.DOTALL)
 
-    if not match_raw:
-        return []
+    # Limpar tags de citação como
+    html_limpo = re.sub(r'\', '', html_str)
 
-    bloco_raw = match_raw.group(1)
+    # TENTATIVA 1: Padrão Resumido (quizData com q, o, a, r)
+    match_quizdata = re.search(r'const\s+quizData\s*=\s*\[(.*?)\];\s*let', html_limpo, re.DOTALL)
+    if not match_quizdata:
+        match_quizdata = re.search(r'const\s+quizData\s*=\s*\[(.*?)\];', html_limpo, re.DOTALL)
 
-    # Separa cada bloco de pergunta pelo fechamento "explanation: ... }"
-    blocos_perguntas = re.split(r'explanation\s*:\s*["\']', bloco_raw)
-
-    for i in range(len(blocos_perguntas) - 1):
-        trecho_q = blocos_perguntas[i]
-        trecho_exp = blocos_perguntas[i+1]
-
-        # Extrai enunciado
-        match_p = re.search(r'question\s*:\s*["\'](.*?)["\']\s*,', trecho_q, re.DOTALL)
-        if not match_p:
-            continue
-        enunciado = match_p.group(1).strip()
-
-        # Extrai explicação
-        match_exp = re.search(r'^(.*?)["\']\s*\}', trecho_exp, re.DOTALL)
-        explicacao = match_exp.group(1).strip() if match_exp else ""
-
-        # Extrai opcoes
-        opcoes = []
-        correta_idx = 0
-        matches_opt = re.findall(r'\{\s*text\s*:\s*["\'](.*?)["\']\s*,\s*correct\s*:\s*(true|false)\s*\}', trecho_q, re.DOTALL)
+    if match_quizdata:
+        bloco_qd = match_quizdata.group(1)
+        # Separa cada item
+        itens = re.findall(r'\{\s*q\s*:\s*["\'](.*?)["\']\s*,\s*o\s*:\s*\[(.*?)\]\s*,\s*a\s*:\s*(\d+)\s*,\s*r\s*:\s*["\'](.*?)["\']\s*\}', bloco_qd, re.DOTALL)
         
-        for idx, opt_tuple in enumerate(matches_opt):
-            opt_texto = opt_tuple[0].strip()
-            is_correct = opt_tuple[1].strip() == "true"
-            opcoes.append(opt_texto)
-            if is_correct:
-                correta_idx = idx
+        for item in itens:
+            enunciado = item[0].strip()
+            raw_options = item[1]
+            correta_idx = int(item[2])
+            explicacao = item[3].strip()
 
-        if enunciado and len(opcoes) >= 2:
-            perguntas_encontradas.append({
-                "pergunta": enunciado,
-                "opcoes": opcoes,
-                "correta": correta_idx,
-                "explicacao": explicacao
-            })
+            opcoes = re.findall(r'["\'](.*?)["\']', raw_options)
+            opcoes_limpas = [opt.strip() for opt in opcoes if opt.strip()]
+
+            if enunciado and len(opcoes_limpas) >= 2:
+                perguntas_encontradas.append({
+                    "pergunta": enunciado,
+                    "opcoes": opcoes_limpas,
+                    "correta": correta_idx,
+                    "explicacao": explicacao
+                })
+
+        if perguntas_encontradas:
+            return perguntas_encontradas
+
+    # TENTATIVA 2: Padrão Extenso (rawQuestions com question, options, etc)
+    match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];\s*let', html_limpo, re.DOTALL)
+    if not match_raw:
+        match_raw = re.search(r'const\s+rawQuestions\s*=\s*\[(.*?)\];', html_limpo, re.DOTALL)
+
+    if match_raw:
+        bloco_raw = match_raw.group(1)
+        blocos_perguntas = re.split(r'explanation\s*:\s*["\']', bloco_raw)
+
+        for i in range(len(blocos_perguntas) - 1):
+            trecho_q = blocos_perguntas[i]
+            trecho_exp = blocos_perguntas[i+1]
+
+            match_p = re.search(r'question\s*:\s*["\'](.*?)["\']\s*,', trecho_q, re.DOTALL)
+            if not match_p:
+                continue
+            enunciado = match_p.group(1).strip()
+
+            match_exp = re.search(r'^(.*?)["\']\s*\}', trecho_exp, re.DOTALL)
+            explicacao = match_exp.group(1).strip() if match_exp else ""
+
+            opcoes = []
+            correta_idx = 0
+            matches_opt = re.findall(r'\{\s*text\s*:\s*["\'](.*?)["\']\s*,\s*correct\s*:\s*(true|false)\s*\}', trecho_q, re.DOTALL)
+            
+            for idx, opt_tuple in enumerate(matches_opt):
+                opt_texto = opt_tuple[0].strip()
+                is_correct = opt_tuple[1].strip() == "true"
+                opcoes.append(opt_texto)
+                if is_correct:
+                    correta_idx = idx
+
+            if enunciado and len(opcoes) >= 2:
+                perguntas_encontradas.append({
+                    "pergunta": enunciado,
+                    "opcoes": opcoes,
+                    "correta": correta_idx,
+                    "explicacao": explicacao
+                })
 
     return perguntas_encontradas
 
@@ -961,20 +987,20 @@ elif pagina == "❓ Quiz Interativo":
     if not temas_disponiveis:
         temas_disponiveis = ["Geral"]
 
-    # ÁREA ADMIN - UPLOAD DE ARQUIVO HTML
+    # ÁREA ADMIN - UPLOAD UNIVERSAL DE ARQUIVOS HTML
     if es_admin:
         with st.expander("⚙️ Importar Quiz via Arquivo HTML (Área Admin)", expanded=True):
             st.markdown("### 📄 Selecione o arquivo HTML do Quiz")
-            html_file = st.file_uploader("Envie o arquivo .html baixado contendo as perguntas do Quiz", type=["html", "htm"])
+            html_file = st.file_uploader("Envie qualquer arquivo .html contendo um Quiz", type=["html", "htm"])
             
             if html_file:
                 conteudo_str = html_file.getvalue().decode("utf-8", errors="ignore")
                 novas_extraidas = extrair_perguntas_do_html_do_quiz(conteudo_str)
                 
                 if novas_extraidas:
-                    st.success(f"🎉 Leitura concluída com sucesso! Foram encontradas **{len(novas_extraidas)} perguntas** no arquivo.")
+                    st.success(f"🎉 Leitura concluída com sucesso! Foram encontradas **{len(novas_extraidas)} perguntas** no arquivo!")
                     
-                    tema_importacao = st.text_input("Qual o Nome do Tema para este Quiz?", value="Jesus: Sua Vida e Sua Obra")
+                    tema_importacao = st.text_input("Qual o Nome do Tema para este Quiz?", value="Discipulado - 2ª Semana")
                     
                     modo_import = st.radio(
                         "Como deseja salvar estas perguntas no banco de dados?",
@@ -996,7 +1022,7 @@ elif pagina == "❓ Quiz Interativo":
                         st.success(f"Quiz '{tema_importacao}' salvo com sucesso com {len(novas_extraidas)} perguntas!")
                         st.rerun()
                 else:
-                    st.error("Não foi possível extrair perguntas deste arquivo HTML. Verifique se o arquivo possui a estrutura correta.")
+                    st.error("Não foi possível identificar a estrutura de perguntas deste arquivo HTML.")
 
             st.divider()
             st.markdown(f"### 📋 Quizzes Cadastrados ({len(lista_perguntas)} perguntas no total)")
